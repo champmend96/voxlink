@@ -334,6 +334,27 @@ export function setupSocket(httpServer: HttpServer): Server {
       }
     );
 
+    // Toggle video on/off mid-call
+    socket.on(
+      "call-toggle-video",
+      (data: { callId: string; videoEnabled: boolean }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        const targetId = userId === call.callerId ? call.calleeId : call.callerId;
+        const targetSockets = getSocketsForUser(targetId);
+        if (targetSockets) {
+          for (const sid of targetSockets) {
+            io.to(sid).emit("call-toggle-video", {
+              callId: data.callId,
+              userId,
+              videoEnabled: data.videoEnabled,
+            });
+          }
+        }
+      }
+    );
+
     socket.on(
       "call-reject",
       async (data: { callId: string }) => {

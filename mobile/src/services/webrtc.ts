@@ -10,21 +10,28 @@ const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+export type CallMediaType = "audio" | "video";
+
 export class WebRTCService {
   private peerConnection: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
   private onIceCandidate: ((candidate: unknown) => void) | null = null;
   private onRemoteStream: ((stream: MediaStream) => void) | null = null;
   private onConnectionStateChange: ((state: string) => void) | null = null;
+  private callMediaType: CallMediaType = "audio";
 
-  async initialize(handlers: {
-    onIceCandidate: (candidate: unknown) => void;
-    onRemoteStream: (stream: MediaStream) => void;
-    onConnectionStateChange: (state: string) => void;
-  }): Promise<void> {
+  async initialize(
+    handlers: {
+      onIceCandidate: (candidate: unknown) => void;
+      onRemoteStream: (stream: MediaStream) => void;
+      onConnectionStateChange: (state: string) => void;
+    },
+    mediaType: CallMediaType = "audio"
+  ): Promise<void> {
     this.onIceCandidate = handlers.onIceCandidate;
     this.onRemoteStream = handlers.onRemoteStream;
     this.onConnectionStateChange = handlers.onConnectionStateChange;
+    this.callMediaType = mediaType;
 
     this.peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
@@ -50,9 +57,10 @@ export class WebRTCService {
   }
 
   private async setupLocalStream(): Promise<void> {
+    const isVideo = this.callMediaType === "video";
     const stream = await mediaDevices.getUserMedia({
       audio: true,
-      video: false,
+      video: isVideo ? { facingMode: "user" } : false,
     });
 
     this.localStream = stream as MediaStream;
@@ -64,12 +72,17 @@ export class WebRTCService {
     }
   }
 
+  getLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
   async createOffer(): Promise<RTCSessionDescription> {
     if (!this.peerConnection) throw new Error("PeerConnection not initialized");
 
+    const isVideo = this.callMediaType === "video";
     const offer = await this.peerConnection.createOffer({
       offerToReceiveAudio: true,
-      offerToReceiveVideo: false,
+      offerToReceiveVideo: isVideo,
     });
     await this.peerConnection.setLocalDescription(offer);
     return offer as RTCSessionDescription;
@@ -107,6 +120,24 @@ export class WebRTCService {
       return !audioTrack.enabled;
     }
     return false;
+  }
+
+  toggleVideo(): boolean {
+    if (!this.localStream) return false;
+    const videoTrack = this.localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      return videoTrack.enabled;
+    }
+    return false;
+  }
+
+  async switchCamera(): Promise<void> {
+    if (!this.localStream) return;
+    const videoTrack = this.localStream.getVideoTracks()[0];
+    if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
+      (videoTrack as any)._switchCamera();
+    }
   }
 
   cleanup(): void {

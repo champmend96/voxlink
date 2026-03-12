@@ -53,15 +53,26 @@ export default function ChatScreen({ route, navigation }: Props) {
 
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          style={{ marginRight: 8, padding: 4 }}
-          onPress={() => {
-            initiateCall(peer.user.id, peer.user);
-            navigation.navigate("OutgoingCall");
-          }}
-        >
-          <Text style={{ fontSize: 22 }}>{"\u{1F4DE}"}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 8, gap: 4 }}>
+          <TouchableOpacity
+            style={{ padding: 4 }}
+            onPress={() => {
+              initiateCall(peer.user.id, peer.user, "video");
+              navigation.navigate("OutgoingCall");
+            }}
+          >
+            <Text style={{ fontSize: 22 }}>{"\u{1F4F9}"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ padding: 4 }}
+            onPress={() => {
+              initiateCall(peer.user.id, peer.user, "audio");
+              navigation.navigate("OutgoingCall");
+            }}
+          >
+            <Text style={{ fontSize: 22 }}>{"\u{1F4DE}"}</Text>
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [conversation, user?.id, navigation, initiateCall]);

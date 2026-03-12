@@ -12,6 +12,8 @@ export default function IncomingCallScreen({ navigation }: Props) {
   const { callStatus, callInfo, acceptCall, rejectCall } = useCall();
   const ringAnim = useRef(new Animated.Value(0)).current;
 
+  const isVideoCall = callInfo?.callType === "video";
+
   useEffect(() => {
     const ring = Animated.loop(
       Animated.sequence([
@@ -54,8 +56,15 @@ export default function IncomingCallScreen({ navigation }: Props) {
 
         <Text style={[styles.name, { color: theme.colors.text }]}>{peerName}</Text>
         <Text style={[styles.status, { color: theme.colors.textSecondary }]}>
-          Incoming {callInfo?.callType || "audio"} call...
+          Incoming {isVideoCall ? "video" : "voice"} call...
         </Text>
+
+        {isVideoCall && (
+          <View style={[styles.callTypeBadge, { backgroundColor: theme.colors.primary }]}>
+            <Text style={styles.callTypeBadgeIcon}>{"\u{1F4F9}"}</Text>
+            <Text style={styles.callTypeBadgeText}>Video Call</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -74,7 +83,9 @@ export default function IncomingCallScreen({ navigation }: Props) {
           style={[styles.actionButton, { backgroundColor: theme.colors.online }]}
           onPress={acceptCall}
         >
-          <Text style={styles.actionIcon}>{"\u{1F4DE}"}</Text>
+          <Text style={styles.actionIcon}>
+            {isVideoCall ? "\u{1F4F9}" : "\u{1F4DE}"}
+          </Text>
           <Text style={styles.actionLabel}>Accept</Text>
         </TouchableOpacity>
       </View>
@@ -96,6 +107,17 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 48, fontWeight: "700", color: "#FFFFFF" },
   name: { fontSize: 28, fontWeight: "700", marginBottom: 8 },
   status: { fontSize: 16 },
+  callTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  callTypeBadgeIcon: { fontSize: 16 },
+  callTypeBadgeText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   actions: {
     flexDirection: "row",
     justifyContent: "space-around",

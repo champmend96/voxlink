@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
+import { RTCView } from "react-native-webrtc";
 import { useTheme } from "../contexts/ThemeContext";
 import { useCall } from "../contexts/CallContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -9,8 +10,10 @@ type Props = NativeStackScreenProps<RootStackParamList, "OutgoingCall">;
 
 export default function OutgoingCallScreen({ navigation }: Props) {
   const { theme } = useTheme();
-  const { callStatus, callInfo, endCall } = useCall();
+  const { callStatus, callInfo, localStream, isVideoEnabled, isFrontCamera, endCall } = useCall();
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const isVideoCall = callInfo?.callType === "video";
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -34,20 +37,51 @@ export default function OutgoingCallScreen({ navigation }: Props) {
   const peerName = callInfo?.peer.displayName || callInfo?.peer.username || "Unknown";
   const initial = peerName.charAt(0).toUpperCase();
 
+  const showLocalPreview = isVideoCall && isVideoEnabled && localStream;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Local video preview for video calls */}
+      {showLocalPreview && (
+        <View style={styles.videoPreviewContainer}>
+          <RTCView
+            streamURL={(localStream as any).toURL()}
+            style={styles.videoPreview}
+            objectFit="cover"
+            mirror={isFrontCamera}
+          />
+          <View style={styles.videoPreviewOverlay} />
+        </View>
+      )}
+
       <View style={styles.content}>
-        <Animated.View
+        {!showLocalPreview && (
+          <Animated.View
+            style={[
+              styles.avatar,
+              { backgroundColor: theme.colors.primary, transform: [{ scale: pulseAnim }] },
+            ]}
+          >
+            <Text style={styles.avatarText}>{initial}</Text>
+          </Animated.View>
+        )}
+
+        <Text
           style={[
-            styles.avatar,
-            { backgroundColor: theme.colors.primary, transform: [{ scale: pulseAnim }] },
+            styles.name,
+            { color: showLocalPreview ? "#FFFFFF" : theme.colors.text },
           ]}
         >
-          <Text style={styles.avatarText}>{initial}</Text>
-        </Animated.View>
-
-        <Text style={[styles.name, { color: theme.colors.text }]}>{peerName}</Text>
-        <Text style={[styles.status, { color: theme.colors.textSecondary }]}>Calling...</Text>
+          {peerName}
+        </Text>
+        <Text
+          style={[
+            styles.status,
+            { color: showLocalPreview ? "rgba(255,255,255,0.7)" : theme.colors.textSecondary },
+          ]}
+        >
+          {isVideoCall ? "Video calling..." : "Calling..."}
+        </Text>
       </View>
 
       <View style={styles.actions}>
@@ -90,4 +124,15 @@ const styles = StyleSheet.create({
   },
   endIcon: { fontSize: 28 },
   endText: { fontSize: 12, color: "#FFFFFF", marginTop: 2 },
+  videoPreviewContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: -1,
+  },
+  videoPreview: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  videoPreviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
 });

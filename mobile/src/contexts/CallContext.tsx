@@ -7,6 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { MediaStream } from "react-native-webrtc";
 import { useSocket } from "./SocketContext";
 import { useAuth } from "./AuthContext";
 import { WebRTCService } from "../services/webrtc";
@@ -18,6 +19,11 @@ interface CallContextType {
   duration: number;
   isMuted: boolean;
   isSpeaker: boolean;
+  isVideoEnabled: boolean;
+  isFrontCamera: boolean;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  remoteVideoEnabled: boolean;
   initiateCall: (
     calleeId: string,
     callee: Pick<User, "id" | "username" | "displayName" | "avatarUrl">,
@@ -28,6 +34,8 @@ interface CallContextType {
   endCall: () => void;
   toggleMute: () => void;
   toggleSpeaker: () => void;
+  toggleVideo: () => void;
+  switchCamera: () => void;
 }
 
 const CallContext = createContext<CallContextType>({
@@ -36,12 +44,19 @@ const CallContext = createContext<CallContextType>({
   duration: 0,
   isMuted: false,
   isSpeaker: false,
+  isVideoEnabled: false,
+  isFrontCamera: true,
+  localStream: null,
+  remoteStream: null,
+  remoteVideoEnabled: false,
   initiateCall: () => {},
   acceptCall: () => {},
   rejectCall: () => {},
   endCall: () => {},
   toggleMute: () => {},
   toggleSpeaker: () => {},
+  toggleVideo: () => {},
+  switchCamera: () => {},
 });
 
 export function CallProvider({ children }: { children: ReactNode }) {
@@ -52,6 +67,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(false);
 
   const webrtcRef = useRef<WebRTCService | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval>>();
@@ -73,6 +93,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setDuration(0);
     setIsMuted(false);
     setIsSpeaker(false);
+    setIsVideoEnabled(false);
+    setIsFrontCamera(true);
+    setLocalStream(null);
+    setRemoteStream(null);
+    setRemoteVideoEnabled(false);
   }, []);
 
   const startDurationTimer = useCallback(() => {
@@ -83,23 +108,36 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const initWebRTC = useCallback(
-    async (currentCallId: string) => {
+    async (currentCallId: string, callType: string = "audio") => {
       const service = new WebRTCService();
       webrtcRef.current = service;
 
-      await service.initialize({
-        onIceCandidate: (candidate) => {
-          socket?.emit("ice-candidate", { callId: currentCallId, candidate });
+      const mediaType = callType === "video" ? "video" : "audio";
+
+      await service.initialize(
+        {
+          onIceCandidate: (candidate) => {
+            socket?.emit("ice-candidate", { callId: currentCallId, candidate });
+          },
+          onRemoteStream: (stream) => {
+            setRemoteStream(stream);
+          },
+          onConnectionStateChange: (state) => {
+            if (state === "disconnected" || state === "failed") {
+              endCallRef.current();
+            }
+          },
         },
-        onRemoteStream: () => {
-          // Audio streams play automatically
-        },
-        onConnectionStateChange: (state) => {
-          if (state === "disconnected" || state === "failed") {
-            endCallRef.current();
-          }
-        },
-      });
+        mediaType
+      );
+
+      const stream = service.getLocalStream();
+      setLocalStream(stream);
+
+      if (callType === "video") {
+        setIsVideoEnabled(true);
+        setRemoteVideoEnabled(true);
+      }
 
       return service;
     },
@@ -122,6 +160,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
         isCaller: true,
       });
 
+      if (callType === "video") {
+        setIsVideoEnabled(true);
+      }
+
       socket.emit("call-initiate", { calleeId, callType });
     },
     [socket, callStatus]
@@ -131,7 +173,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (!socket || !callInfo || callStatus !== "ringing") return;
 
     try {
-      const service = await initWebRTC(callInfo.callId);
+      const service = await initWebRTC(callInfo.callId, callInfo.callType);
 
       // Process queued ICE candidates
       for (const candidate of iceCandidateQueueRef.current) {
@@ -175,6 +217,27 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setIsSpeaker((prev) => !prev);
   }, []);
 
+  const toggleVideo = useCallback(() => {
+    if (webrtcRef.current) {
+      const enabled = webrtcRef.current.toggleVideo();
+      setIsVideoEnabled(enabled);
+
+      if (socket && callInfo) {
+        socket.emit("call-toggle-video", {
+          callId: callInfo.callId,
+          videoEnabled: enabled,
+        });
+      }
+    }
+  }, [socket, callInfo]);
+
+  const switchCamera = useCallback(async () => {
+    if (webrtcRef.current) {
+      await webrtcRef.current.switchCamera();
+      setIsFrontCamera((prev) => !prev);
+    }
+  }, []);
+
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
@@ -187,11 +250,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
       // Now init WebRTC and create offer
       (async () => {
         try {
-          const service = await initWebRTC(data.callId);
-          const offer = await service.createOffer();
-          socket!.emit("call-offer", { callId: data.callId, sdp: offer });
+          setCallInfo((prev) => {
+            const callType = prev?.callType || "audio";
+            (async () => {
+              try {
+                const service = await initWebRTC(data.callId, callType);
+                const offer = await service.createOffer();
+                socket!.emit("call-offer", { callId: data.callId, sdp: offer });
+              } catch (err) {
+                console.error("Error creating offer:", err);
+                cleanup();
+              }
+            })();
+            return prev ? { ...prev, callId: data.callId } : null;
+          });
         } catch (err) {
-          console.error("Error creating offer:", err);
+          console.error("Error in call initiated handler:", err);
           cleanup();
         }
       })();
@@ -258,6 +332,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
       cleanup();
     }
 
+    function onCallToggleVideo(data: {
+      callId: string;
+      userId: string;
+      videoEnabled: boolean;
+    }) {
+      setRemoteVideoEnabled(data.videoEnabled);
+    }
+
     socket.on("call-initiated", onCallInitiated);
     socket.on("call-incoming", onCallIncoming);
     socket.on("call-offer", onCallOffer);
@@ -268,6 +350,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     socket.on("call-busy", onCallBusy);
     socket.on("call-timeout", onCallTimeout);
     socket.on("call-error", onCallError);
+    socket.on("call-toggle-video", onCallToggleVideo);
 
     return () => {
       socket.off("call-initiated", onCallInitiated);
@@ -280,6 +363,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       socket.off("call-busy", onCallBusy);
       socket.off("call-timeout", onCallTimeout);
       socket.off("call-error", onCallError);
+      socket.off("call-toggle-video", onCallToggleVideo);
     };
   }, [socket, callStatus, initWebRTC, startDurationTimer, cleanup]);
 
@@ -291,12 +375,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
         duration,
         isMuted,
         isSpeaker,
+        isVideoEnabled,
+        isFrontCamera,
+        localStream,
+        remoteStream,
+        remoteVideoEnabled,
         initiateCall,
         acceptCall,
         rejectCall,
         endCall,
         toggleMute,
         toggleSpeaker,
+        toggleVideo,
+        switchCamera,
       }}
     >
       {children}
