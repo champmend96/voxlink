@@ -1,0 +1,71 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server-tests:
+    name: Server Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci --workspace=server
+
+      - name: Run server unit tests
+        run: npm run test:unit --workspace=server
+
+      - name: Run server integration tests
+        run: npm run test:integration --workspace=server
+
+      - name: Run server tests with coverage
+        run: npm run test:coverage --workspace=server
+
+      - name: Upload server coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-coverage
+          path: server/coverage/
+
+  mobile-tests:
+    name: Mobile Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install mobile dependencies
+        run: npm ci --workspace=mobile
+
+      - name: Run mobile tests
+        run: npm test --workspace=mobile
+
+      - name: Run mobile tests with coverage
+        run: npm run test:coverage --workspace=mobile
+
+      - name: Upload mobile coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-coverage
+          path: mobile/coverage/
