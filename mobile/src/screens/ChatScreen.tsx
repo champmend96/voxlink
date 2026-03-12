@@ -12,27 +12,59 @@ import {
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useSocket } from "../contexts/SocketContext";
+import { useCall } from "../contexts/CallContext";
 import { api } from "../services/api";
-import { Message } from "../types";
+import { Message, Conversation } from "../types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Chat">;
 
-export default function ChatScreen({ route }: Props) {
+export default function ChatScreen({ route, navigation }: Props) {
   const { conversationId } = route.params;
   const { theme } = useTheme();
   const { user } = useAuth();
   const { socket } = useSocket();
+  const { initiateCall } = useCall();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     loadMessages();
+    loadConversation();
   }, [conversationId]);
+
+  async function loadConversation() {
+    try {
+      const data = (await api.conversations.get(conversationId)) as Conversation;
+      setConversation(data);
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (!conversation || conversation.isGroup) return;
+
+    const peer = conversation.participants.find((p) => p.userId !== user?.id);
+    if (!peer) return;
+
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          style={{ marginRight: 8, padding: 4 }}
+          onPress={() => {
+            initiateCall(peer.user.id, peer.user);
+            navigation.navigate("OutgoingCall");
+          }}
+        >
+          <Text style={{ fontSize: 22 }}>{"\u{1F4DE}"}</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [conversation, user?.id, navigation, initiateCall]);
 
   useEffect(() => {
     if (!socket) return;

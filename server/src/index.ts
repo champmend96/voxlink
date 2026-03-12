@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import conversationRoutes from "./routes/conversations";
 import messageRoutes from "./routes/messages";
+import callRoutes from "./routes/calls";
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,6 +23,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/calls", callRoutes);
 
 const io = setupSocket(httpServer);
 

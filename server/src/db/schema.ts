@@ -6,6 +6,7 @@ import {
   timestamp,
   boolean,
   primaryKey,
+  integer,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -89,5 +90,33 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, {
     fields: [messages.senderId],
     references: [users.id],
+  }),
+}));
+
+export const callHistory = pgTable("call_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  callerId: uuid("caller_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  calleeId: uuid("callee_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  callType: varchar("call_type", { length: 10 }).notNull().default("audio"),
+  status: varchar("status", { length: 20 }).notNull().default("missed"),
+  duration: integer("duration").default(0).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+});
+
+export const callHistoryRelations = relations(callHistory, ({ one }) => ({
+  caller: one(users, {
+    fields: [callHistory.callerId],
+    references: [users.id],
+    relationName: "callerCalls",
+  }),
+  callee: one(users, {
+    fields: [callHistory.calleeId],
+    references: [users.id],
+    relationName: "calleeCalls",
   }),
 }));

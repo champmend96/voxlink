@@ -8,11 +8,34 @@ import {
   conversationParticipants,
   users,
   conversations,
+  callHistory,
 } from "../db/schema";
 import { config } from "../config";
 import { AuthPayload } from "../middleware/auth";
 
 const onlineUsers = new Map<string, Set<string>>();
+
+interface ActiveCall {
+  id: string;
+  callerId: string;
+  calleeId: string;
+  callType: string;
+  startedAt: Date;
+  connectedAt?: Date;
+  callRecordId?: string;
+}
+
+const activeCalls = new Map<string, ActiveCall>();
+const userInCall = new Map<string, string>();
+
+let callIdCounter = 0;
+function generateCallId(): string {
+  return `call_${Date.now()}_${++callIdCounter}`;
+}
+
+function getSocketsForUser(userId: string): Set<string> | undefined {
+  return onlineUsers.get(userId);
+}
 
 export function setupSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
@@ -152,6 +175,227 @@ export function setupSocket(httpServer: HttpServer): Server {
       }
     );
 
+    // ── WebRTC Signaling Events ──
+
+    socket.on(
+      "call-initiate",
+      async (data: { calleeId: string; callType: string }) => {
+        try {
+          const { calleeId, callType } = data;
+
+          if (userInCall.has(userId)) {
+            socket.emit("call-error", { message: "You are already in a call" });
+            return;
+          }
+
+          if (userInCall.has(calleeId)) {
+            socket.emit("call-busy", { calleeId });
+            return;
+          }
+
+          const calleeSockets = getSocketsForUser(calleeId);
+          if (!calleeSockets || calleeSockets.size === 0) {
+            socket.emit("call-error", { message: "User is offline" });
+            return;
+          }
+
+          const callId = generateCallId();
+
+          const [callRecord] = await db
+            .insert(callHistory)
+            .values({
+              callerId: userId,
+              calleeId,
+              callType,
+              status: "missed",
+            })
+            .returning();
+
+          const call: ActiveCall = {
+            id: callId,
+            callerId: userId,
+            calleeId,
+            callType,
+            startedAt: new Date(),
+            callRecordId: callRecord.id,
+          };
+
+          activeCalls.set(callId, call);
+          userInCall.set(userId, callId);
+          userInCall.set(calleeId, callId);
+
+          const caller = await db.query.users.findFirst({
+            where: eq(users.id, userId),
+            columns: { id: true, username: true, displayName: true, avatarUrl: true },
+          });
+
+          for (const sid of calleeSockets) {
+            io.to(sid).emit("call-incoming", {
+              callId,
+              caller,
+              callType,
+            });
+          }
+
+          socket.emit("call-initiated", { callId, calleeId });
+
+          // 30s ring timeout
+          setTimeout(async () => {
+            const activeCall = activeCalls.get(callId);
+            if (activeCall && !activeCall.connectedAt) {
+              activeCalls.delete(callId);
+              userInCall.delete(userId);
+              userInCall.delete(calleeId);
+
+              const callerSockets = getSocketsForUser(userId);
+              const calleeSocks = getSocketsForUser(calleeId);
+
+              if (callerSockets) {
+                for (const sid of callerSockets) {
+                  io.to(sid).emit("call-timeout", { callId });
+                }
+              }
+              if (calleeSocks) {
+                for (const sid of calleeSocks) {
+                  io.to(sid).emit("call-timeout", { callId });
+                }
+              }
+            }
+          }, 30000);
+        } catch (err) {
+          console.error("Error initiating call:", err);
+          socket.emit("call-error", { message: "Failed to initiate call" });
+        }
+      }
+    );
+
+    socket.on(
+      "call-offer",
+      (data: { callId: string; sdp: unknown }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        const targetId = call.calleeId;
+        const targetSockets = getSocketsForUser(targetId);
+        if (targetSockets) {
+          for (const sid of targetSockets) {
+            io.to(sid).emit("call-offer", {
+              callId: data.callId,
+              sdp: data.sdp,
+            });
+          }
+        }
+      }
+    );
+
+    socket.on(
+      "call-answer",
+      async (data: { callId: string; sdp: unknown }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        call.connectedAt = new Date();
+
+        if (call.callRecordId) {
+          await db
+            .update(callHistory)
+            .set({ status: "answered" })
+            .where(eq(callHistory.id, call.callRecordId));
+        }
+
+        const callerSockets = getSocketsForUser(call.callerId);
+        if (callerSockets) {
+          for (const sid of callerSockets) {
+            io.to(sid).emit("call-answer", {
+              callId: data.callId,
+              sdp: data.sdp,
+            });
+          }
+        }
+      }
+    );
+
+    socket.on(
+      "ice-candidate",
+      (data: { callId: string; candidate: unknown }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        const targetId = userId === call.callerId ? call.calleeId : call.callerId;
+        const targetSockets = getSocketsForUser(targetId);
+        if (targetSockets) {
+          for (const sid of targetSockets) {
+            io.to(sid).emit("ice-candidate", {
+              callId: data.callId,
+              candidate: data.candidate,
+            });
+          }
+        }
+      }
+    );
+
+    socket.on(
+      "call-reject",
+      async (data: { callId: string }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        if (call.callRecordId) {
+          await db
+            .update(callHistory)
+            .set({ status: "rejected", endedAt: new Date() })
+            .where(eq(callHistory.id, call.callRecordId));
+        }
+
+        activeCalls.delete(data.callId);
+        userInCall.delete(call.callerId);
+        userInCall.delete(call.calleeId);
+
+        const callerSockets = getSocketsForUser(call.callerId);
+        if (callerSockets) {
+          for (const sid of callerSockets) {
+            io.to(sid).emit("call-rejected", { callId: data.callId });
+          }
+        }
+      }
+    );
+
+    socket.on(
+      "call-end",
+      async (data: { callId: string }) => {
+        const call = activeCalls.get(data.callId);
+        if (!call) return;
+
+        const endedAt = new Date();
+        const duration = call.connectedAt
+          ? Math.floor((endedAt.getTime() - call.connectedAt.getTime()) / 1000)
+          : 0;
+
+        if (call.callRecordId) {
+          await db
+            .update(callHistory)
+            .set({
+              status: call.connectedAt ? "completed" : "missed",
+              duration,
+              endedAt,
+            })
+            .where(eq(callHistory.id, call.callRecordId));
+        }
+
+        activeCalls.delete(data.callId);
+        userInCall.delete(call.callerId);
+        userInCall.delete(call.calleeId);
+
+        const targetId = userId === call.callerId ? call.calleeId : call.callerId;
+        const targetSockets = getSocketsForUser(targetId);
+        if (targetSockets) {
+          for (const sid of targetSockets) {
+            io.to(sid).emit("call-ended", { callId: data.callId });
+          }
+        }
+      }
+    );
+
     socket.on("disconnect", async () => {
       const sockets = onlineUsers.get(userId);
       if (sockets) {
@@ -163,6 +407,41 @@ export function setupSocket(httpServer: HttpServer): Server {
             .set({ lastSeen: new Date() })
             .where(eq(users.id, userId));
           io.emit("online-status", { userId, online: false });
+
+          // Clean up any active call for this user
+          const callId = userInCall.get(userId);
+          if (callId) {
+            const call = activeCalls.get(callId);
+            if (call) {
+              const endedAt = new Date();
+              const duration = call.connectedAt
+                ? Math.floor((endedAt.getTime() - call.connectedAt.getTime()) / 1000)
+                : 0;
+
+              if (call.callRecordId) {
+                await db
+                  .update(callHistory)
+                  .set({
+                    status: call.connectedAt ? "completed" : "missed",
+                    duration,
+                    endedAt,
+                  })
+                  .where(eq(callHistory.id, call.callRecordId));
+              }
+
+              activeCalls.delete(callId);
+              userInCall.delete(call.callerId);
+              userInCall.delete(call.calleeId);
+
+              const peerId = userId === call.callerId ? call.calleeId : call.callerId;
+              const peerSockets = getSocketsForUser(peerId);
+              if (peerSockets) {
+                for (const sid of peerSockets) {
+                  io.to(sid).emit("call-ended", { callId });
+                }
+              }
+            }
+          }
         }
       }
     });

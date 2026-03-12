@@ -37,3 +37,25 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
 }
+
+export type CallStatus = "idle" | "calling" | "ringing" | "connected" | "ended";
+
+export interface CallInfo {
+  callId: string;
+  peer: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+  callType: string;
+  isCaller: boolean;
+}
+
+export interface CallHistoryEntry {
+  id: string;
+  callerId: string;
+  calleeId: string;
+  callType: string;
+  status: string;
+  duration: number;
+  startedAt: string;
+  endedAt: string | null;
+  caller: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+  callee: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+}

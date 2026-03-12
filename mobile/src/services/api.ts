@@ -86,4 +86,8 @@ export const api = {
     list: (conversationId: string, cursor?: string) =>
       request(`/messages/${conversationId}${cursor ? `?cursor=${cursor}` : ""}`),
   },
+  calls: {
+    history: (limit?: number) =>
+      request(`/calls/history${limit ? `?limit=${limit}` : ""}`),
+  },
 };

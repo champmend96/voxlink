@@ -1,22 +1,30 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import { createNativeStackNavigator, NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useCall } from "../contexts/CallContext";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import ConversationListScreen from "../screens/ConversationListScreen";
 import ChatScreen from "../screens/ChatScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import CallHistoryScreen from "../screens/CallHistoryScreen";
+import OutgoingCallScreen from "../screens/OutgoingCallScreen";
+import IncomingCallScreen from "../screens/IncomingCallScreen";
+import ActiveCallScreen from "../screens/ActiveCallScreen";
 import { Text } from "react-native";
 
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   Chat: { conversationId: string; title: string };
+  OutgoingCall: undefined;
+  IncomingCall: undefined;
+  ActiveCall: undefined;
 };
 
 export type AuthStackParamList = {
@@ -26,6 +34,7 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Conversations: undefined;
+  Calls: undefined;
   Settings: undefined;
   Profile: undefined;
 };
@@ -37,6 +46,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 function TabIcon({ label, focused, color }: { label: string; focused: boolean; color: string }) {
   const icons: Record<string, string> = {
     Conversations: "\u{1F4AC}",
+    Calls: "\u{1F4DE}",
     Settings: "\u2699\uFE0F",
     Profile: "\u{1F464}",
   };
@@ -85,10 +95,28 @@ function MainTabNavigator() {
         component={ConversationListScreen}
         options={{ title: "Chats" }}
       />
+      <Tab.Screen
+        name="Calls"
+        component={CallHistoryScreen}
+        options={{ title: "Calls" }}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
+}
+
+function IncomingCallNavigator() {
+  const { callStatus } = useCall();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  useEffect(() => {
+    if (callStatus === "ringing") {
+      navigation.navigate("IncomingCall");
+    }
+  }, [callStatus, navigation]);
+
+  return null;
 }
 
 export default function AppNavigator() {
@@ -120,7 +148,14 @@ export default function AppNavigator() {
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           <>
-            <RootStack.Screen name="Main" component={MainTabNavigator} />
+            <RootStack.Screen name="Main">
+              {() => (
+                <>
+                  <MainTabNavigator />
+                  <IncomingCallNavigator />
+                </>
+              )}
+            </RootStack.Screen>
             <RootStack.Screen
               name="Chat"
               component={ChatScreen}
@@ -130,6 +165,33 @@ export default function AppNavigator() {
                 headerStyle: { backgroundColor: theme.colors.card },
                 headerTintColor: theme.colors.text,
               })}
+            />
+            <RootStack.Screen
+              name="OutgoingCall"
+              component={OutgoingCallScreen}
+              options={{
+                headerShown: false,
+                presentation: "fullScreenModal",
+                animation: "slide_from_bottom",
+              }}
+            />
+            <RootStack.Screen
+              name="IncomingCall"
+              component={IncomingCallScreen}
+              options={{
+                headerShown: false,
+                presentation: "fullScreenModal",
+                animation: "slide_from_bottom",
+              }}
+            />
+            <RootStack.Screen
+              name="ActiveCall"
+              component={ActiveCallScreen}
+              options={{
+                headerShown: false,
+                presentation: "fullScreenModal",
+                gestureEnabled: false,
+              }}
             />
           </>
         ) : (
