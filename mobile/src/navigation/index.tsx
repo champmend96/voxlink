@@ -16,6 +16,7 @@ import CallHistoryScreen from "../screens/CallHistoryScreen";
 import OutgoingCallScreen from "../screens/OutgoingCallScreen";
 import IncomingCallScreen from "../screens/IncomingCallScreen";
 import ActiveCallScreen from "../screens/ActiveCallScreen";
+import GroupCallScreen from "../screens/GroupCallScreen";
 import { Text } from "react-native";
 
 export type RootStackParamList = {
@@ -25,6 +26,7 @@ export type RootStackParamList = {
   OutgoingCall: undefined;
   IncomingCall: undefined;
   ActiveCall: undefined;
+  GroupCall: { conversationId: string };
 };
 
 export type AuthStackParamList = {
@@ -187,6 +189,15 @@ export default function AppNavigator() {
             <RootStack.Screen
               name="ActiveCall"
               component={ActiveCallScreen}
+              options={{
+                headerShown: false,
+                presentation: "fullScreenModal",
+                gestureEnabled: false,
+              }}
+            />
+            <RootStack.Screen
+              name="GroupCall"
+              component={GroupCallScreen}
               options={{
                 headerShown: false,
                 presentation: "fullScreenModal",

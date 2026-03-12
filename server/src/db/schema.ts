@@ -17,6 +17,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   displayName: varchar("display_name", { length: 100 }),
   avatarUrl: text("avatar_url"),
+  publicKey: text("public_key"),
+  failedLoginAttempts: integer("failed_login_attempts").default(0).notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
   lastSeen: timestamp("last_seen", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -58,9 +61,37 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const deviceTokens = pgTable("device_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  platform: varchar("platform", { length: 10 }).notNull(), // "ios" | "android"
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const callHistory = pgTable("call_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  callerId: uuid("caller_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  calleeId: uuid("callee_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  callType: varchar("call_type", { length: 10 }).notNull().default("audio"),
+  status: varchar("status", { length: 20 }).notNull().default("missed"),
+  duration: integer("duration").default(0).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+});
+
+// Relations
+
 export const usersRelations = relations(users, ({ many }) => ({
   participantIn: many(conversationParticipants),
   messages: many(messages),
+  deviceTokens: many(deviceTokens),
 }));
 
 export const conversationsRelations = relations(conversations, ({ many }) => ({
@@ -93,20 +124,12 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
-export const callHistory = pgTable("call_history", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  callerId: uuid("caller_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  calleeId: uuid("callee_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  callType: varchar("call_type", { length: 10 }).notNull().default("audio"),
-  status: varchar("status", { length: 20 }).notNull().default("missed"),
-  duration: integer("duration").default(0).notNull(),
-  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
-  endedAt: timestamp("ended_at", { withTimezone: true }),
-});
+export const deviceTokensRelations = relations(deviceTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [deviceTokens.userId],
+    references: [users.id],
+  }),
+}));
 
 export const callHistoryRelations = relations(callHistory, ({ one }) => ({
   caller: one(users, {

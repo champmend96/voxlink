@@ -5,8 +5,9 @@ import {
   mediaDevices,
   MediaStream,
 } from "react-native-webrtc";
+import { api } from "./api";
 
-const ICE_SERVERS = {
+const DEFAULT_ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
@@ -33,7 +34,18 @@ export class WebRTCService {
     this.onConnectionStateChange = handlers.onConnectionStateChange;
     this.callMediaType = mediaType;
 
-    this.peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    // Fetch ICE server config from backend (includes TURN credentials)
+    let iceConfig = DEFAULT_ICE_SERVERS;
+    try {
+      const config = await api.ice.getConfig();
+      if (config.iceServers && config.iceServers.length > 0) {
+        iceConfig = { iceServers: config.iceServers as any };
+      }
+    } catch {
+      // Fall back to default STUN
+    }
+
+    this.peerConnection = new RTCPeerConnection(iceConfig);
 
     this.peerConnection.addEventListener("icecandidate", (event: any) => {
       if (event.candidate && this.onIceCandidate) {

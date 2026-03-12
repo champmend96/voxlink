@@ -90,4 +90,58 @@ export const api = {
     history: (limit?: number) =>
       request(`/calls/history${limit ? `?limit=${limit}` : ""}`),
   },
+  ice: {
+    getConfig: () => request<{ iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> }>("/ice/config"),
+  },
+  devices: {
+    register: (token: string, platform: "ios" | "android") =>
+      request("/devices/register", {
+        method: "POST",
+        body: JSON.stringify({ token, platform }),
+      }),
+    unregister: (token: string) =>
+      request("/devices/unregister", {
+        method: "DELETE",
+        body: JSON.stringify({ token }),
+      }),
+  },
+  keys: {
+    getPublicKeys: (userIds: string[]) =>
+      request<{ keys: Record<string, string | null> }>("/keys", {
+        method: "POST",
+        body: JSON.stringify({ userIds }),
+      }),
+    updateMyPublicKey: (publicKey: string) =>
+      request("/keys/me", {
+        method: "PUT",
+        body: JSON.stringify({ publicKey }),
+      }),
+  },
+  upload: {
+    file: async (conversationId: string, fileUri: string, fileName: string, mimeType: string) => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", {
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+      formData.append("conversationId", conversationId);
+
+      const res = await fetch(`${API_URL}/messages/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(error.error || "Upload failed");
+      }
+
+      return res.json();
+    },
+  },
 };

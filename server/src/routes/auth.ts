@@ -7,6 +7,8 @@ import { users } from "../db/schema";
 import { config } from "../config";
 import { registerSchema, loginSchema, refreshSchema } from "../validators";
 import { AuthPayload, authenticate } from "../middleware/auth";
+import { validatePasswordStrength } from "../middleware/security";
+import { logger } from "../services/logger";
 
 const router = Router();
 
@@ -23,6 +25,14 @@ function generateTokens(payload: AuthPayload) {
 router.post("/register", async (req: Request, res: Response) => {
   try {
     const body = registerSchema.parse(req.body);
+
+    // Password strength validation
+    const strength = validatePasswordStrength(body.password);
+    if (!strength.valid) {
+      res.status(400).json({ error: strength.message });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(body.password, 12);
 
     const [user] = await db
@@ -51,6 +61,7 @@ router.post("/register", async (req: Request, res: Response) => {
       res.status(400).json({ error: "Validation failed", details: err.errors });
       return;
     }
+    logger.error({ err }, "Registration error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -63,9 +74,44 @@ router.post("/login", async (req: Request, res: Response) => {
       where: eq(users.email, body.email),
     });
 
-    if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
+    if (!user) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
+    }
+
+    // Account lockout check
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const remainingMs = user.lockedUntil.getTime() - Date.now();
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      res.status(423).json({
+        error: `Account locked. Try again in ${remainingMin} minute(s)`,
+      });
+      return;
+    }
+
+    const validPassword = await bcrypt.compare(body.password, user.passwordHash);
+
+    if (!validPassword) {
+      const newAttempts = (user.failedLoginAttempts || 0) + 1;
+      const updates: Record<string, any> = { failedLoginAttempts: newAttempts };
+
+      if (newAttempts >= config.maxLoginAttempts) {
+        updates.lockedUntil = new Date(Date.now() + config.lockoutDurationMs);
+        logger.warn({ email: body.email }, "Account locked after failed attempts");
+      }
+
+      await db.update(users).set(updates).where(eq(users.id, user.id));
+
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+
+    // Reset failed attempts on successful login
+    if (user.failedLoginAttempts > 0) {
+      await db
+        .update(users)
+        .set({ failedLoginAttempts: 0, lockedUntil: null })
+        .where(eq(users.id, user.id));
     }
 
     const tokens = generateTokens({ userId: user.id, username: user.username });
@@ -83,6 +129,7 @@ router.post("/login", async (req: Request, res: Response) => {
       res.status(400).json({ error: "Validation failed", details: err.errors });
       return;
     }
+    logger.error({ err }, "Login error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -91,6 +138,8 @@ router.post("/refresh", async (req: Request, res: Response) => {
   try {
     const { refreshToken } = refreshSchema.parse(req.body);
     const payload = jwt.verify(refreshToken, config.jwtRefreshSecret) as AuthPayload;
+
+    // Token rotation: issue completely new tokens
     const tokens = generateTokens({ userId: payload.userId, username: payload.username });
     res.json(tokens);
   } catch (err: any) {
@@ -112,6 +161,7 @@ router.get("/me", authenticate, async (req: Request, res: Response) => {
         email: true,
         displayName: true,
         avatarUrl: true,
+        publicKey: true,
         lastSeen: true,
         createdAt: true,
       },

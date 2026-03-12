@@ -12,5 +12,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  coturn:
+    image: coturn/coturn
+    network_mode: host
+    volumes:
+      - ./server/config/turnserver.conf:/etc/turnserver.conf:ro
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49152-65535:49152-65535/udp"
+    restart: unless-stopped
+
 volumes:
   pgdata:

@@ -9,9 +9,14 @@ import {
   users,
   conversations,
   callHistory,
+  deviceTokens,
 } from "../db/schema";
 import { config } from "../config";
 import { AuthPayload } from "../middleware/auth";
+import { logger } from "../services/logger";
+import { pushService } from "../services/push";
+import { mediasoupService } from "../services/mediasoup";
+import { setWsConnectionCount, setActiveCallsCount } from "../routes/metrics";
 
 const onlineUsers = new Map<string, Set<string>>();
 
@@ -35,6 +40,15 @@ function generateCallId(): string {
 
 function getSocketsForUser(userId: string): Set<string> | undefined {
   return onlineUsers.get(userId);
+}
+
+function updateMetrics(): void {
+  let totalConnections = 0;
+  for (const sockets of onlineUsers.values()) {
+    totalConnections += sockets.size;
+  }
+  setWsConnectionCount(totalConnections);
+  setActiveCallsCount(activeCalls.size);
 }
 
 export function setupSocket(httpServer: HttpServer): Server {
@@ -62,6 +76,7 @@ export function setupSocket(httpServer: HttpServer): Server {
       onlineUsers.set(userId, new Set());
     }
     onlineUsers.get(userId)!.add(socket.id);
+    updateMetrics();
 
     await db
       .update(users)
@@ -132,7 +147,7 @@ export function setupSocket(httpServer: HttpServer): Server {
             fullMessage
           );
         } catch (err) {
-          console.error("Error sending message:", err);
+          logger.error({ err }, "Error sending message");
         }
       }
     );
@@ -170,7 +185,7 @@ export function setupSocket(httpServer: HttpServer): Server {
             });
           }
         } catch (err) {
-          console.error("Error processing read receipt:", err);
+          logger.error({ err }, "Error processing read receipt");
         }
       }
     );
@@ -194,10 +209,6 @@ export function setupSocket(httpServer: HttpServer): Server {
           }
 
           const calleeSockets = getSocketsForUser(calleeId);
-          if (!calleeSockets || calleeSockets.size === 0) {
-            socket.emit("call-error", { message: "User is offline" });
-            return;
-          }
 
           const callId = generateCallId();
 
@@ -223,11 +234,32 @@ export function setupSocket(httpServer: HttpServer): Server {
           activeCalls.set(callId, call);
           userInCall.set(userId, callId);
           userInCall.set(calleeId, callId);
+          updateMetrics();
 
           const caller = await db.query.users.findFirst({
             where: eq(users.id, userId),
             columns: { id: true, username: true, displayName: true, avatarUrl: true },
           });
+
+          if (!calleeSockets || calleeSockets.size === 0) {
+            // User is offline — send push notification
+            const tokens = await db
+              .select({ token: deviceTokens.token, platform: deviceTokens.platform })
+              .from(deviceTokens)
+              .where(eq(deviceTokens.userId, calleeId));
+
+            if (tokens.length > 0) {
+              const callerName = caller?.displayName || caller?.username || "Someone";
+              await pushService.sendCallNotification(tokens, callerName, callType, callId);
+            }
+
+            socket.emit("call-error", { message: "User is offline" });
+            activeCalls.delete(callId);
+            userInCall.delete(userId);
+            userInCall.delete(calleeId);
+            updateMetrics();
+            return;
+          }
 
           for (const sid of calleeSockets) {
             io.to(sid).emit("call-incoming", {
@@ -246,6 +278,7 @@ export function setupSocket(httpServer: HttpServer): Server {
               activeCalls.delete(callId);
               userInCall.delete(userId);
               userInCall.delete(calleeId);
+              updateMetrics();
 
               const callerSockets = getSocketsForUser(userId);
               const calleeSocks = getSocketsForUser(calleeId);
@@ -263,7 +296,7 @@ export function setupSocket(httpServer: HttpServer): Server {
             }
           }, 30000);
         } catch (err) {
-          console.error("Error initiating call:", err);
+          logger.error({ err }, "Error initiating call");
           socket.emit("call-error", { message: "Failed to initiate call" });
         }
       }
@@ -371,6 +404,7 @@ export function setupSocket(httpServer: HttpServer): Server {
         activeCalls.delete(data.callId);
         userInCall.delete(call.callerId);
         userInCall.delete(call.calleeId);
+        updateMetrics();
 
         const callerSockets = getSocketsForUser(call.callerId);
         if (callerSockets) {
@@ -406,6 +440,7 @@ export function setupSocket(httpServer: HttpServer): Server {
         activeCalls.delete(data.callId);
         userInCall.delete(call.callerId);
         userInCall.delete(call.calleeId);
+        updateMetrics();
 
         const targetId = userId === call.callerId ? call.calleeId : call.callerId;
         const targetSockets = getSocketsForUser(targetId);
@@ -414,6 +449,144 @@ export function setupSocket(httpServer: HttpServer): Server {
             io.to(sid).emit("call-ended", { callId: data.callId });
           }
         }
+      }
+    );
+
+    // ── Group Call Events (SFU via mediasoup) ──
+
+    socket.on(
+      "group-call-join",
+      async (data: { conversationId: string }) => {
+        try {
+          const { conversationId } = data;
+          const callId = `group_${conversationId}`;
+
+          let groupCall = mediasoupService.getGroupCall(callId);
+          if (!groupCall) {
+            groupCall = await mediasoupService.createGroupCall(callId);
+          }
+
+          if (!mediasoupService.canJoin(callId)) {
+            socket.emit("group-call-error", { message: "Call is full (max 8)" });
+            return;
+          }
+
+          const user = await db.query.users.findFirst({
+            where: eq(users.id, userId),
+            columns: { displayName: true, username: true },
+          });
+
+          const displayName = user?.displayName || user?.username || "Unknown";
+          await mediasoupService.addParticipant(callId, userId, displayName);
+
+          socket.join(`group-call:${callId}`);
+
+          // Notify others
+          socket.to(`group-call:${callId}`).emit("group-call-participant-joined", {
+            userId,
+            displayName,
+          });
+
+          // Send existing participants to the joiner
+          const participants = mediasoupService.getParticipants(callId);
+          socket.emit("group-call-participants", { participants });
+
+          // Send router RTP capabilities
+          const rtpCapabilities = mediasoupService.getRouterRtpCapabilities(callId);
+          socket.emit("group-call-rtp-capabilities", { rtpCapabilities });
+        } catch (err) {
+          logger.error({ err }, "Error joining group call");
+        }
+      }
+    );
+
+    socket.on(
+      "group-call-leave",
+      async (data: { conversationId: string }) => {
+        const callId = `group_${data.conversationId}`;
+        await mediasoupService.removeParticipant(callId, userId);
+        socket.leave(`group-call:${callId}`);
+        io.to(`group-call:${callId}`).emit("group-call-participant-left", { userId });
+      }
+    );
+
+    socket.on(
+      "group-call-create-transport",
+      async (data: { conversationId: string; direction: "send" | "recv" }) => {
+        const callId = `group_${data.conversationId}`;
+        const transport = await mediasoupService.createWebRtcTransport(
+          callId,
+          userId,
+          data.direction
+        );
+        socket.emit("group-call-transport-created", {
+          direction: data.direction,
+          transport,
+        });
+      }
+    );
+
+    socket.on(
+      "group-call-connect-transport",
+      async (data: {
+        conversationId: string;
+        transportId: string;
+        dtlsParameters: any;
+      }) => {
+        const callId = `group_${data.conversationId}`;
+        await mediasoupService.connectTransport(
+          callId,
+          userId,
+          data.transportId,
+          data.dtlsParameters
+        );
+      }
+    );
+
+    socket.on(
+      "group-call-produce",
+      async (data: {
+        conversationId: string;
+        kind: "audio" | "video";
+        rtpParameters: any;
+      }) => {
+        const callId = `group_${data.conversationId}`;
+        const producerId = await mediasoupService.produce(
+          callId,
+          userId,
+          data.kind,
+          data.rtpParameters
+        );
+
+        socket.emit("group-call-produced", { producerId });
+
+        // Notify others about new producer
+        socket.to(`group-call:${callId}`).emit("group-call-new-producer", {
+          userId,
+          producerId,
+          kind: data.kind,
+        });
+      }
+    );
+
+    socket.on(
+      "group-call-consume",
+      async (data: {
+        conversationId: string;
+        producerUserId: string;
+        producerId: string;
+        rtpCapabilities: any;
+      }) => {
+        const callId = `group_${data.conversationId}`;
+        const consumer = await mediasoupService.consume(
+          callId,
+          userId,
+          data.producerUserId,
+          data.producerId,
+          data.rtpCapabilities
+        );
+
+        socket.emit("group-call-consumed", consumer);
       }
     );
 
@@ -465,6 +638,7 @@ export function setupSocket(httpServer: HttpServer): Server {
           }
         }
       }
+      updateMetrics();
     });
   });
 

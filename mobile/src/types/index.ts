@@ -4,6 +4,7 @@ export interface User {
   email?: string;
   displayName: string | null;
   avatarUrl: string | null;
+  publicKey?: string | null;
   lastSeen: string | null;
 }
 
@@ -15,6 +16,15 @@ export interface Message {
   readBy: string[];
   createdAt: string;
   sender?: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+}
+
+export interface FileMessageMetadata {
+  type: "file";
+  filename: string;
+  mimeType: string;
+  size: number;
+  thumbnailUrl: string | null;
+  downloadUrl: string;
 }
 
 export interface Conversation {
@@ -58,4 +68,14 @@ export interface CallHistoryEntry {
   endedAt: string | null;
   caller: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
   callee: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+}
+
+export function isFileMessage(content: string): FileMessageMetadata | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed && parsed.type === "file") return parsed as FileMessageMetadata;
+    return null;
+  } catch {
+    return null;
+  }
 }
