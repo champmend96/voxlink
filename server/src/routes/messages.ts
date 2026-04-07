@@ -16,7 +16,7 @@ router.use(authenticate);
 
 router.get("/:conversationId", async (req: Request, res: Response) => {
   try {
-    const { conversationId } = req.params;
+    const conversationId = req.params.conversationId as string;
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
 

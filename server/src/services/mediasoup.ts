@@ -21,22 +21,22 @@ interface GroupCall {
   createdAt: Date;
 }
 
-const mediaCodecs: mediasoupTypes.RtpCodecCapability[] = [
+const mediaCodecs = [
   {
-    kind: "audio",
+    kind: "audio" as const,
     mimeType: "audio/opus",
     clockRate: 48000,
     channels: 2,
   },
   {
-    kind: "video",
+    kind: "video" as const,
     mimeType: "video/VP8",
     clockRate: 90000,
     parameters: {
       "x-google-start-bitrate": 1000,
     },
   },
-];
+] as unknown as mediasoupTypes.RtpCodecCapability[];
 
 class MediasoupService {
   private workers: mediasoupTypes.Worker[] = [];

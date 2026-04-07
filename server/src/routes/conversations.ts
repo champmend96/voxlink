@@ -118,7 +118,7 @@ router.post("/", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const conv = await db.query.conversations.findFirst({
-      where: eq(conversations.id, req.params.id),
+      where: eq(conversations.id, req.params.id as string),
       with: {
         participants: {
           with: {

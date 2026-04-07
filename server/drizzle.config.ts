@@ -7,4 +7,5 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
+  tablesFilter: ["users", "conversations", "conversation_participants", "messages", "device_tokens", "call_history"],
 });
