@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://localhost:3000/api";
+const API_URL = "https://voxlink-backend.onrender.com/api";
 
 async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem("accessToken");

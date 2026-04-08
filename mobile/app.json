@@ -10,9 +10,16 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.champmend.voxlink",
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     }
   }
 }

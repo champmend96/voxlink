@@ -13,7 +13,7 @@ const SocketContext = createContext<SocketContextType>({
   onlineUsers: new Set(),
 });
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://voxlink-backend.onrender.com";
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
