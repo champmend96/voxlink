@@ -55,6 +55,7 @@ class MediasoupService {
 
   async initialize(): Promise<void> {
     try {
+      // @ts-ignore — mediasoup may not be installed
       const ms = await import("mediasoup");
       mediasoup = ms;
       mediasoupTypes = (ms as any).types;
