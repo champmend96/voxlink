@@ -1,22 +1,27 @@
-import * as mediasoup from "mediasoup";
-import { types as mediasoupTypes } from "mediasoup";
 import { config } from "../config";
 import { logger } from "./logger";
+
+// mediasoup is optional — requires native C++ worker binary
+// If it fails to load (e.g., on Render free tier), group calls are disabled
+// but 1-on-1 voice/video calls via WebRTC still work
+
+let mediasoup: typeof import("mediasoup") | null = null;
+let mediasoupTypes: typeof import("mediasoup").types | null = null;
 
 const MAX_GROUP_CALL_PARTICIPANTS = 8;
 
 interface Participant {
   userId: string;
   displayName: string;
-  sendTransport?: mediasoupTypes.WebRtcTransport;
-  recvTransport?: mediasoupTypes.WebRtcTransport;
-  producers: Map<string, mediasoupTypes.Producer>;
-  consumers: Map<string, mediasoupTypes.Consumer>;
+  sendTransport?: any;
+  recvTransport?: any;
+  producers: Map<string, any>;
+  consumers: Map<string, any>;
 }
 
 interface GroupCall {
   id: string;
-  router: mediasoupTypes.Router;
+  router: any;
   participants: Map<string, Participant>;
   createdAt: Date;
 }
@@ -36,43 +41,68 @@ const mediaCodecs = [
       "x-google-start-bitrate": 1000,
     },
   },
-] as unknown as mediasoupTypes.RtpCodecCapability[];
+];
 
 class MediasoupService {
-  private workers: mediasoupTypes.Worker[] = [];
+  private workers: any[] = [];
   private nextWorkerIdx = 0;
   private groupCalls = new Map<string, GroupCall>();
+  private _available = false;
+
+  get available(): boolean {
+    return this._available;
+  }
 
   async initialize(): Promise<void> {
-    const numWorkers = Math.min(
-      require("os").cpus().length,
-      config.mediasoupWorkers
-    );
+    try {
+      const ms = await import("mediasoup");
+      mediasoup = ms;
+      mediasoupTypes = (ms as any).types;
+    } catch (err) {
+      logger.warn("mediasoup not available — group calls disabled (1-on-1 calls still work)");
+      this._available = false;
+      return;
+    }
 
-    for (let i = 0; i < numWorkers; i++) {
-      const worker = await mediasoup.createWorker({
-        logLevel: "warn",
-        rtcMinPort: config.mediasoupRtcMinPort,
-        rtcMaxPort: config.mediasoupRtcMaxPort,
-      });
+    try {
+      const numWorkers = Math.min(
+        require("os").cpus().length,
+        config.mediasoupWorkers
+      );
 
-      worker.on("died", () => {
-        logger.error(`Mediasoup worker ${worker.pid} died, exiting`);
-        setTimeout(() => process.exit(1), 2000);
-      });
+      for (let i = 0; i < numWorkers; i++) {
+        const worker = await mediasoup!.createWorker({
+          logLevel: "warn",
+          rtcMinPort: config.mediasoupRtcMinPort,
+          rtcMaxPort: config.mediasoupRtcMaxPort,
+        });
 
-      this.workers.push(worker);
-      logger.info(`Mediasoup worker ${worker.pid} created`);
+        worker.on("died", () => {
+          logger.error(`Mediasoup worker ${worker.pid} died, exiting`);
+          setTimeout(() => process.exit(1), 2000);
+        });
+
+        this.workers.push(worker);
+        logger.info(`Mediasoup worker ${worker.pid} created`);
+      }
+
+      this._available = true;
+      logger.info(`Mediasoup initialized with ${numWorkers} workers — group calls enabled`);
+    } catch (err) {
+      logger.warn({ err }, "mediasoup worker init failed — group calls disabled");
+      this._available = false;
     }
   }
 
-  private getNextWorker(): mediasoupTypes.Worker {
+  private getNextWorker(): any {
     const worker = this.workers[this.nextWorkerIdx];
     this.nextWorkerIdx = (this.nextWorkerIdx + 1) % this.workers.length;
     return worker;
   }
 
-  async createGroupCall(callId: string): Promise<GroupCall> {
+  async createGroupCall(callId: string): Promise<GroupCall | null> {
+    if (!this._available) return null;
+
     const worker = this.getNextWorker();
     const router = await worker.createRouter({ mediaCodecs });
 
@@ -92,7 +122,7 @@ class MediasoupService {
     return this.groupCalls.get(callId);
   }
 
-  getRouterRtpCapabilities(callId: string): mediasoupTypes.RtpCapabilities | null {
+  getRouterRtpCapabilities(callId: string): any | null {
     const call = this.groupCalls.get(callId);
     return call ? call.router.rtpCapabilities : null;
   }
@@ -131,9 +161,9 @@ class MediasoupService {
     direction: "send" | "recv"
   ): Promise<{
     id: string;
-    iceParameters: mediasoupTypes.IceParameters;
-    iceCandidates: mediasoupTypes.IceCandidate[];
-    dtlsParameters: mediasoupTypes.DtlsParameters;
+    iceParameters: any;
+    iceCandidates: any[];
+    dtlsParameters: any;
   } | null> {
     const call = this.groupCalls.get(callId);
     if (!call) return null;
@@ -172,7 +202,7 @@ class MediasoupService {
     callId: string,
     userId: string,
     transportId: string,
-    dtlsParameters: mediasoupTypes.DtlsParameters
+    dtlsParameters: any
   ): Promise<boolean> {
     const call = this.groupCalls.get(callId);
     if (!call) return false;
@@ -196,8 +226,8 @@ class MediasoupService {
   async produce(
     callId: string,
     userId: string,
-    kind: mediasoupTypes.MediaKind,
-    rtpParameters: mediasoupTypes.RtpParameters
+    kind: string,
+    rtpParameters: any
   ): Promise<string | null> {
     const call = this.groupCalls.get(callId);
     if (!call) return null;
@@ -224,12 +254,12 @@ class MediasoupService {
     consumerUserId: string,
     producerUserId: string,
     producerId: string,
-    rtpCapabilities: mediasoupTypes.RtpCapabilities
+    rtpCapabilities: any
   ): Promise<{
     id: string;
     producerId: string;
-    kind: mediasoupTypes.MediaKind;
-    rtpParameters: mediasoupTypes.RtpParameters;
+    kind: string;
+    rtpParameters: any;
   } | null> {
     const call = this.groupCalls.get(callId);
     if (!call) return null;
@@ -322,7 +352,7 @@ class MediasoupService {
   getProducers(callId: string, excludeUserId?: string): Array<{
     userId: string;
     producerId: string;
-    kind: mediasoupTypes.MediaKind;
+    kind: string;
   }> {
     const call = this.groupCalls.get(callId);
     if (!call) return [];
@@ -330,7 +360,7 @@ class MediasoupService {
     const producers: Array<{
       userId: string;
       producerId: string;
-      kind: mediasoupTypes.MediaKind;
+      kind: string;
     }> = [];
 
     for (const [userId, participant] of call.participants) {

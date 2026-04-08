@@ -458,15 +458,20 @@ export function setupSocket(httpServer: HttpServer): Server {
       "group-call-join",
       async (data: { conversationId: string }) => {
         try {
+          if (!mediasoupService.available) {
+            socket.emit("group-call-error", { message: "Group calls not available on this server" });
+            return;
+          }
+
           const { conversationId } = data;
           const callId = `group_${conversationId}`;
 
-          let groupCall = mediasoupService.getGroupCall(callId);
+          let groupCall: any = mediasoupService.getGroupCall(callId);
           if (!groupCall) {
             groupCall = await mediasoupService.createGroupCall(callId);
           }
 
-          if (!mediasoupService.canJoin(callId)) {
+          if (!groupCall || !mediasoupService.canJoin(callId)) {
             socket.emit("group-call-error", { message: "Call is full (max 8)" });
             return;
           }
