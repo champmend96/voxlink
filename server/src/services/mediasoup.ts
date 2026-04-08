@@ -5,8 +5,8 @@ import { logger } from "./logger";
 // If it fails to load (e.g., on Render free tier), group calls are disabled
 // but 1-on-1 voice/video calls via WebRTC still work
 
-let mediasoup: typeof import("mediasoup") | null = null;
-let mediasoupTypes: typeof import("mediasoup").types | null = null;
+let mediasoup: any = null;
+let mediasoupTypes: any = null;
 
 const MAX_GROUP_CALL_PARTICIPANTS = 8;
 
