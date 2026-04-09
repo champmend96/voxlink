@@ -258,23 +258,39 @@ export default function ChatScreen({ route, navigation }: Props) {
 
   function renderFileContent(fileMeta: FileMessageMetadata, mine: boolean) {
     const isImage = fileMeta.mimeType.startsWith("image/");
+    const fileUrl = fileMeta.downloadUrl.startsWith("http") ? fileMeta.downloadUrl : `${SERVER_URL}${fileMeta.downloadUrl}`;
+    const thumbUrl = fileMeta.thumbnailUrl
+      ? (fileMeta.thumbnailUrl.startsWith("http") ? fileMeta.thumbnailUrl : `${SERVER_URL}${fileMeta.thumbnailUrl}`)
+      : null;
+    // For images, also try using the download URL as fallback thumbnail
+    const imageSource = thumbUrl || (isImage ? fileUrl : null);
 
-    if (isImage && fileMeta.thumbnailUrl) {
+    if (isImage) {
       return (
         <TouchableOpacity
-          onPress={() => Linking.openURL(`${SERVER_URL}${fileMeta.downloadUrl}`)}
+          activeOpacity={0.8}
+          onPress={() => Linking.openURL(fileUrl)}
+          style={styles.imageContainer}
         >
-          <Image
-            source={{ uri: `${SERVER_URL}${fileMeta.thumbnailUrl}` }}
-            style={styles.imageThumb}
-            resizeMode="cover"
-          />
+          {imageSource ? (
+            <Image
+              source={{ uri: imageSource }}
+              style={styles.imageThumb}
+              resizeMode="cover"
+              defaultSource={undefined}
+            />
+          ) : (
+            <View style={[styles.imageThumb, styles.imagePlaceholder]}>
+              <Ionicons name="image" size={40} color="rgba(255,255,255,0.3)" />
+            </View>
+          )}
           <Text
             style={{
               color: mine ? "rgba(255,255,255,0.7)" : theme.colors.textSecondary,
-              fontSize: 12,
+              fontSize: 11,
               marginTop: 4,
             }}
+            numberOfLines={1}
           >
             {fileMeta.filename}
           </Text>
@@ -285,32 +301,35 @@ export default function ChatScreen({ route, navigation }: Props) {
     return (
       <TouchableOpacity
         style={styles.fileRow}
-        onPress={() => Linking.openURL(`${SERVER_URL}${fileMeta.downloadUrl}`)}
+        activeOpacity={0.7}
+        onPress={() => Linking.openURL(fileUrl)}
       >
         <View style={[styles.fileIconContainer, { backgroundColor: mine ? "rgba(255,255,255,0.15)" : theme.colors.primaryLight }]}>
-          <Ionicons name="document" size={18} color={mine ? "#FFF" : theme.colors.primary} />
+          <Ionicons name="document" size={20} color={mine ? "#FFF" : theme.colors.primary} />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 4 }}>
           <Text
             style={{
               color: mine ? theme.colors.messageSentText : theme.colors.messageReceivedText,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: "500",
             }}
-            numberOfLines={1}
+            numberOfLines={2}
+            ellipsizeMode="middle"
           >
             {fileMeta.filename}
           </Text>
           <Text
             style={{
               color: mine ? "rgba(255,255,255,0.6)" : theme.colors.textSecondary,
-              fontSize: 12,
-              marginTop: 1,
+              fontSize: 11,
+              marginTop: 2,
             }}
           >
             {formatFileSize(fileMeta.size)}
           </Text>
         </View>
+        <Ionicons name="download-outline" size={18} color={mine ? "rgba(255,255,255,0.5)" : theme.colors.textSecondary} />
       </TouchableOpacity>
     );
   }
@@ -543,20 +562,30 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sendIcon: { fontSize: 16 },
+  imageContainer: {
+    minWidth: 200,
+  },
   imageThumb: {
-    width: 200,
-    height: 200,
-    borderRadius: 14,
+    width: 220,
+    height: 180,
+    borderRadius: 12,
+  },
+  imagePlaceholder: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fileRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    minWidth: 200,
   },
   fileIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
