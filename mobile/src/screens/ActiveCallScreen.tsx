@@ -8,6 +8,7 @@ import {
   StatusBar,
 } from "react-native";
 import { RTCView } from "react-native-webrtc";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { useCall } from "../contexts/CallContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -116,7 +117,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
               ]}
               onPress={toggleMute}
             >
-              <Text style={styles.videoControlIcon}>{isMuted ? "\u{1F507}" : "\u{1F3A4}"}</Text>
+              <Ionicons name={isMuted ? "mic-off" : "mic"} size={24} color="#FFF" />
               <Text style={styles.videoControlLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
             </TouchableOpacity>
 
@@ -127,7 +128,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
               ]}
               onPress={toggleSpeaker}
             >
-              <Text style={styles.videoControlIcon}>{isSpeaker ? "\u{1F50A}" : "\u{1F508}"}</Text>
+              <Ionicons name={isSpeaker ? "volume-high" : "volume-low"} size={24} color="#FFF" />
               <Text style={styles.videoControlLabel}>{isSpeaker ? "Speaker" : "Earpiece"}</Text>
             </TouchableOpacity>
 
@@ -142,9 +143,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
               ]}
               onPress={toggleVideo}
             >
-              <Text style={styles.videoControlIcon}>
-                {isVideoEnabled ? "\u{1F4F9}" : "\u{1F6AB}"}
-              </Text>
+              <Ionicons name={isVideoEnabled ? "videocam" : "videocam-off"} size={24} color="#FFF" />
               <Text style={styles.videoControlLabel}>
                 {isVideoEnabled ? "Cam On" : "Cam Off"}
               </Text>
@@ -154,7 +153,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
               style={[styles.videoControlButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
               onPress={switchCamera}
             >
-              <Text style={styles.videoControlIcon}>{"\u{1F504}"}</Text>
+              <Ionicons name="camera-reverse" size={24} color="#FFF" />
               <Text style={styles.videoControlLabel}>Flip</Text>
             </TouchableOpacity>
           </View>
@@ -163,7 +162,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
             style={styles.videoEndButton}
             onPress={() => endCall()}
           >
-            <Text style={styles.videoEndIcon}>{"\u{1F4F5}"}</Text>
+            <Ionicons name="call" size={26} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
             <Text style={styles.videoEndText}>End</Text>
           </TouchableOpacity>
         </View>
@@ -193,7 +192,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
           ]}
           onPress={toggleMute}
         >
-          <Text style={styles.controlIcon}>{isMuted ? "\u{1F507}" : "\u{1F3A4}"}</Text>
+          <Ionicons name={isMuted ? "mic-off" : "mic"} size={28} color={isMuted ? "#FFF" : theme.colors.text} />
           <Text style={[styles.controlLabel, { color: theme.colors.text }]}>
             {isMuted ? "Unmute" : "Mute"}
           </Text>
@@ -206,7 +205,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
           ]}
           onPress={toggleSpeaker}
         >
-          <Text style={styles.controlIcon}>{isSpeaker ? "\u{1F50A}" : "\u{1F508}"}</Text>
+          <Ionicons name={isSpeaker ? "volume-high" : "volume-low"} size={28} color={isSpeaker ? "#FFF" : theme.colors.text} />
           <Text style={[styles.controlLabel, { color: theme.colors.text }]}>
             {isSpeaker ? "Speaker" : "Earpiece"}
           </Text>
@@ -218,7 +217,7 @@ export default function ActiveCallScreen({ navigation }: Props) {
           style={[styles.endButton, { backgroundColor: theme.colors.notification }]}
           onPress={() => endCall()}
         >
-          <Text style={styles.endIcon}>{"\u{1F4F5}"}</Text>
+          <Ionicons name="call" size={28} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
           <Text style={styles.endText}>End Call</Text>
         </TouchableOpacity>
       </View>

@@ -22,6 +22,7 @@ import type { RootStackParamList } from "../navigation";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { MainTabParamList } from "../navigation";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
   navigation: CompositeNavigationProp<
@@ -178,7 +179,7 @@ export default function ConversationListScreen({ navigation }: Props) {
       {/* Search bar */}
       <View style={styles.searchBarContainer}>
         <View style={[styles.searchBar, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.searchIcon, { color: theme.colors.textSecondary }]}>{"\u{1F50D}"}</Text>
+          <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.text }]}
             placeholder="Search conversations..."
@@ -188,7 +189,7 @@ export default function ConversationListScreen({ navigation }: Props) {
           />
           {filterQuery.length > 0 && (
             <TouchableOpacity onPress={() => setFilterQuery("")}>
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>{"\u2715"}</Text>
+              <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -203,7 +204,7 @@ export default function ConversationListScreen({ navigation }: Props) {
         contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : { paddingBottom: 80 }}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>{"\u{1F4AC}"}</Text>
+            <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
               No conversations yet
             </Text>
@@ -270,7 +271,7 @@ export default function ConversationListScreen({ navigation }: Props) {
         onPress={() => setShowNew(true)}
         activeOpacity={0.8}
       >
-        <Text style={styles.fabIcon}>+</Text>
+        <MaterialCommunityIcons name="message-plus" size={26} color="#FFF" />
       </TouchableOpacity>
 
       {/* New conversation modal */}
@@ -284,12 +285,12 @@ export default function ConversationListScreen({ navigation }: Props) {
                 onPress={() => { setShowNew(false); setSearchQuery(""); setSearchResults([]); }}
                 style={[styles.modalCloseBtn, { backgroundColor: theme.colors.card }]}
               >
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 16, fontWeight: "600" }}>{"\u2715"}</Text>
+                <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={[styles.modalSearchBar, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 16, marginRight: 8 }}>{"\u{1F50D}"}</Text>
+              <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.modalSearchInput, { color: theme.colors.text }]}
                 placeholder="Search by username..."

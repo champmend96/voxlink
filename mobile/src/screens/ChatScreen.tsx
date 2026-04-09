@@ -23,6 +23,7 @@ import { api } from "../services/api";
 import { Message, Conversation, isFileMessage, FileMessageMetadata } from "../types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Chat">;
 
@@ -73,7 +74,7 @@ export default function ChatScreen({ route, navigation }: Props) {
         <View style={{ flexDirection: "row", alignItems: "center", marginRight: 4, gap: 2 }}>
           {isEncrypted && (
             <View style={headerStyles.badge}>
-              <Text style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</Text>
+              <Ionicons name="lock-closed" size={14} color={theme.colors.textSecondary} />
             </View>
           )}
           {conversation.isGroup && (
@@ -81,7 +82,7 @@ export default function ChatScreen({ route, navigation }: Props) {
               style={headerStyles.iconBtn}
               onPress={() => navigation.navigate("GroupCall", { conversationId })}
             >
-              <Text style={{ fontSize: 20 }}>{"\uD83D\uDC65"}</Text>
+              <Ionicons name="people" size={22} color={theme.colors.text} />
             </TouchableOpacity>
           )}
           {!conversation.isGroup && peer && (
@@ -93,7 +94,7 @@ export default function ChatScreen({ route, navigation }: Props) {
                   navigation.navigate("OutgoingCall");
                 }}
               >
-                <Text style={{ fontSize: 18 }}>{"\u{1F4F9}"}</Text>
+                <Ionicons name="videocam" size={22} color={theme.colors.text} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={headerStyles.iconBtn}
@@ -102,7 +103,7 @@ export default function ChatScreen({ route, navigation }: Props) {
                   navigation.navigate("OutgoingCall");
                 }}
               >
-                <Text style={{ fontSize: 18 }}>{"\u{1F4DE}"}</Text>
+                <Ionicons name="call" size={20} color={theme.colors.text} />
               </TouchableOpacity>
             </>
           )}
@@ -287,7 +288,7 @@ export default function ChatScreen({ route, navigation }: Props) {
         onPress={() => Linking.openURL(`${SERVER_URL}${fileMeta.downloadUrl}`)}
       >
         <View style={[styles.fileIconContainer, { backgroundColor: mine ? "rgba(255,255,255,0.15)" : theme.colors.primaryLight }]}>
-          <Text style={{ fontSize: 18 }}>{"\uD83D\uDCC4"}</Text>
+          <Ionicons name="document" size={18} color={mine ? "#FFF" : theme.colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text
@@ -336,7 +337,7 @@ export default function ChatScreen({ route, navigation }: Props) {
         contentContainerStyle={messages.length === 0 ? styles.emptyContainer : styles.list}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>{"\u{1F44B}"}</Text>
+            <Ionicons name="chatbubble-outline" size={40} color={theme.colors.textSecondary} style={{ marginBottom: 12 }} />
             <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
               Say hello!
             </Text>
@@ -401,16 +402,12 @@ export default function ChatScreen({ route, navigation }: Props) {
                     {formatTime(item.createdAt)}
                   </Text>
                   {mine && (
-                    <Text
-                      style={[
-                        styles.readStatus,
-                        {
-                          color: item.readBy.length > 1 ? "#22C55E" : "rgba(255,255,255,0.4)",
-                        },
-                      ]}
-                    >
-                      {item.readBy.length > 1 ? " \u2713\u2713" : " \u2713"}
-                    </Text>
+                    <Ionicons
+                      name={item.readBy.length > 1 ? "checkmark-done" : "checkmark"}
+                      size={14}
+                      color={item.readBy.length > 1 ? "#22C55E" : "rgba(255,255,255,0.4)"}
+                      style={{ marginLeft: 4 }}
+                    />
                   )}
                 </View>
               </View>
@@ -437,7 +434,7 @@ export default function ChatScreen({ route, navigation }: Props) {
           style={styles.attachButton}
           onPress={handleAttachment}
         >
-          <Text style={{ fontSize: 20, color: theme.colors.textSecondary }}>{"\uFF0B"}</Text>
+          <Ionicons name="add" size={24} color={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TextInput
           style={[styles.input, { backgroundColor: theme.colors.inputBg, color: theme.colors.text }]}
@@ -458,12 +455,11 @@ export default function ChatScreen({ route, navigation }: Props) {
           onPress={handleSend}
           disabled={!text.trim()}
         >
-          <Text style={[
-            styles.sendIcon,
-            { color: text.trim() ? "#FFF" : theme.colors.textSecondary },
-          ]}>
-            {"\u27A4"}
-          </Text>
+          <Ionicons
+            name="send"
+            size={18}
+            color={text.trim() ? "#FFF" : theme.colors.textSecondary}
+          />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

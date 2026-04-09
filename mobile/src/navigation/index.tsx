@@ -3,6 +3,7 @@ import { ActivityIndicator, View, Text, StyleSheet } from "react-native";
 import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator, NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useCall } from "../contexts/CallContext";
@@ -44,19 +45,18 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
-  Conversations: { active: "\u{1F4AC}", inactive: "\u{1F4AC}" },
-  Calls: { active: "\u{1F4DE}", inactive: "\u{1F4DE}" },
-  Settings: { active: "\u2699\uFE0F", inactive: "\u2699\uFE0F" },
-  Profile: { active: "\u{1F464}", inactive: "\u{1F464}" },
+const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
+  Conversations: { active: "chatbubble-ellipses", inactive: "chatbubble-ellipses-outline" },
+  Calls: { active: "call", inactive: "call-outline" },
+  Settings: { active: "settings", inactive: "settings-outline" },
+  Profile: { active: "person", inactive: "person-outline" },
 };
 
-function TabIcon({ label, focused }: { label: string; focused: boolean; color: string }) {
+function TabIcon({ label, focused, color }: { label: string; focused: boolean; color: string }) {
   const icons = TAB_ICONS[label];
+  const iconName = icons ? (focused ? icons.active : icons.inactive) : "ellipse";
   return (
-    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
-      {icons ? (focused ? icons.active : icons.inactive) : "\u2022"}
-    </Text>
+    <Ionicons name={iconName} size={22} color={color} />
   );
 }
 

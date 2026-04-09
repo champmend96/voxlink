@@ -14,6 +14,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../navigation";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, "Login">;
@@ -49,7 +50,7 @@ export default function LoginScreen({ navigation }: Props) {
       <View style={styles.inner}>
         <View style={styles.logoSection}>
           <View style={[styles.logoCircle, { backgroundColor: theme.colors.primary }]}>
-            <Text style={styles.logoEmoji}>{"\u{1F4AC}"}</Text>
+            <Ionicons name="chatbubbles" size={34} color="#FFF" />
           </View>
           <Text style={[styles.title, { color: theme.colors.text }]}>VoxLink</Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>

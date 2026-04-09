@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
 import { CallHistoryEntry } from "../types";
@@ -80,32 +81,32 @@ export default function CallHistoryScreen() {
 
     let statusText: string;
     let statusColor: string;
-    let icon: string;
+    let iconName: keyof typeof Ionicons.glyphMap;
 
     switch (call.status) {
       case "completed":
       case "answered":
         statusText = isCaller ? "Outgoing" : "Incoming";
         statusColor = theme.colors.online;
-        icon = isCaller ? "\u2197\uFE0F" : "\u2199\uFE0F";
+        iconName = isCaller ? "arrow-up" : "arrow-down";
         break;
       case "missed":
         statusText = isCaller ? "No answer" : "Missed";
         statusColor = theme.colors.notification;
-        icon = "\u{1F4F5}";
+        iconName = "close-circle";
         break;
       case "rejected":
         statusText = isCaller ? "Declined" : "Rejected";
         statusColor = theme.colors.notification;
-        icon = "\u{1F4F5}";
+        iconName = "close-circle";
         break;
       default:
         statusText = call.status;
         statusColor = theme.colors.textSecondary;
-        icon = "\u{1F4DE}";
+        iconName = "call";
     }
 
-    return { peerName, initial, statusText, statusColor, icon };
+    return { peerName, initial, statusText, statusColor, iconName };
   }
 
   if (loading) {
@@ -127,7 +128,7 @@ export default function CallHistoryScreen() {
         contentContainerStyle={calls.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>{"\u{1F4DE}"}</Text>
+            <Ionicons name="call-outline" size={48} color={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
               No calls yet
             </Text>
@@ -142,7 +143,7 @@ export default function CallHistoryScreen() {
           </View>
         )}
         renderItem={({ item }) => {
-          const { peerName, initial, statusText, statusColor, icon } =
+          const { peerName, initial, statusText, statusColor, iconName } =
             getCallStatusInfo(item);
           const durationStr = formatDuration(item.duration);
           const avatarColor = getAvatarColor(peerName, theme.colors.avatarColors);
@@ -158,12 +159,12 @@ export default function CallHistoryScreen() {
                   {peerName}
                 </Text>
                 <View style={styles.statusRow}>
-                  <Text style={{ fontSize: 13 }}>{icon}</Text>
+                  <Ionicons name={iconName} size={14} color={statusColor} />
                   <Text style={[styles.statusText, { color: statusColor }]}>
                     {statusText}
                   </Text>
                   {item.callType === "video" && (
-                    <Text style={{ fontSize: 12, marginLeft: 4 }}>{"\u{1F4F9}"}</Text>
+                    <Ionicons name="videocam" size={13} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
                   )}
                   {durationStr ? (
                     <Text style={[styles.durationText, { color: theme.colors.textSecondary }]}>

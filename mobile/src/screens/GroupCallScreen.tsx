@@ -8,6 +8,7 @@ import {
   FlatList,
 } from "react-native";
 import { RTCView, MediaStream } from "react-native-webrtc";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { useSocket } from "../contexts/SocketContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -160,10 +161,14 @@ export default function GroupCallScreen({ route, navigation }: Props) {
           </View>
         )}
         <View style={styles.nameOverlay}>
-          <Text style={styles.nameText} numberOfLines={1}>
-            {item.displayName}
-            {item.audioEnabled === false ? " \uD83D\uDD07" : ""}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={styles.nameText} numberOfLines={1}>
+              {item.displayName}
+            </Text>
+            {item.audioEnabled === false && (
+              <Ionicons name="mic-off" size={12} color="#FFF" style={{ marginLeft: 4 }} />
+            )}
+          </View>
         </View>
       </View>
     );
@@ -198,7 +203,7 @@ export default function GroupCallScreen({ route, navigation }: Props) {
           ]}
           onPress={handleToggleMute}
         >
-          <Text style={styles.controlIcon}>{isMuted ? "\uD83D\uDD07" : "\uD83C\uDF99"}</Text>
+          <Ionicons name={isMuted ? "mic-off" : "mic"} size={24} color="#FFF" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -212,9 +217,7 @@ export default function GroupCallScreen({ route, navigation }: Props) {
           ]}
           onPress={handleToggleVideo}
         >
-          <Text style={styles.controlIcon}>
-            {isVideoEnabled ? "\uD83D\uDCF9" : "\uD83D\uDEAB"}
-          </Text>
+          <Ionicons name={isVideoEnabled ? "videocam" : "videocam-off"} size={24} color="#FFF" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -224,14 +227,14 @@ export default function GroupCallScreen({ route, navigation }: Props) {
           ]}
           onPress={handleSwitchCamera}
         >
-          <Text style={styles.controlIcon}>{"\uD83D\uDD04"}</Text>
+          <Ionicons name="camera-reverse" size={24} color="#FFF" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.controlButton, styles.endButton]}
           onPress={handleLeave}
         >
-          <Text style={styles.controlIcon}>{"\uD83D\uDCF5"}</Text>
+          <Ionicons name="call" size={24} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
         </TouchableOpacity>
       </View>
     </View>

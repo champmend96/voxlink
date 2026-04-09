@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Switch } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -12,7 +13,7 @@ export default function SettingsScreen() {
       <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.rowLeft}>
-            <Text style={styles.rowIcon}>{isDark ? "\u{1F319}" : "\u2600\uFE0F"}</Text>
+            <Ionicons name={isDark ? "moon" : "sunny"} size={20} color={theme.colors.text} style={{ marginRight: 12 }} />
             <Text style={[styles.label, { color: theme.colors.text }]}>Dark Mode</Text>
           </View>
           <Switch
@@ -27,10 +28,10 @@ export default function SettingsScreen() {
       <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
         <TouchableOpacity style={styles.row} onPress={logout} activeOpacity={0.6}>
           <View style={styles.rowLeft}>
-            <Text style={styles.rowIcon}>{"\u{1F6AA}"}</Text>
+            <Ionicons name="log-out" size={20} color="#EF4444" style={{ marginRight: 12 }} />
             <Text style={[styles.label, { color: "#EF4444" }]}>Sign Out</Text>
           </View>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>{"\u203A"}</Text>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 

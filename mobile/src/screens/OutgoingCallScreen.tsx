@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { RTCView } from "react-native-webrtc";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { useCall } from "../contexts/CallContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -92,7 +93,7 @@ export default function OutgoingCallScreen({ navigation }: Props) {
             navigation.goBack();
           }}
         >
-          <Text style={styles.endIcon}>{"\u{1F4F5}"}</Text>
+          <Ionicons name="call" size={28} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
           <Text style={styles.endText}>Cancel</Text>
         </TouchableOpacity>
       </View>

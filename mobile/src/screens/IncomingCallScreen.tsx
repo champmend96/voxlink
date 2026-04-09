@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { useCall } from "../contexts/CallContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -61,7 +62,7 @@ export default function IncomingCallScreen({ navigation }: Props) {
 
         {isVideoCall && (
           <View style={[styles.callTypeBadge, { backgroundColor: theme.colors.primary }]}>
-            <Text style={styles.callTypeBadgeIcon}>{"\u{1F4F9}"}</Text>
+            <Ionicons name="videocam" size={16} color="#FFF" />
             <Text style={styles.callTypeBadgeText}>Video Call</Text>
           </View>
         )}
@@ -75,7 +76,7 @@ export default function IncomingCallScreen({ navigation }: Props) {
             navigation.goBack();
           }}
         >
-          <Text style={styles.actionIcon}>{"\u{1F4F5}"}</Text>
+          <Ionicons name="call" size={28} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
           <Text style={styles.actionLabel}>Decline</Text>
         </TouchableOpacity>
 
@@ -83,9 +84,7 @@ export default function IncomingCallScreen({ navigation }: Props) {
           style={[styles.actionButton, { backgroundColor: theme.colors.online }]}
           onPress={acceptCall}
         >
-          <Text style={styles.actionIcon}>
-            {isVideoCall ? "\u{1F4F9}" : "\u{1F4DE}"}
-          </Text>
+          <Ionicons name={isVideoCall ? "videocam" : "call"} size={28} color="#FFF" />
           <Text style={styles.actionLabel}>Accept</Text>
         </TouchableOpacity>
       </View>
