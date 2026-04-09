@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
@@ -22,12 +22,17 @@ export default function ProfileScreen() {
     }
   }
 
+  const avatarColor = theme.colors.primary;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.avatarSection}>
-        <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
           <Text style={styles.avatarText}>{user?.username?.[0]?.toUpperCase()}</Text>
         </View>
+        <Text style={[styles.displayName, { color: theme.colors.text }]}>
+          {user?.displayName || user?.username}
+        </Text>
         <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
           @{user?.username}
         </Text>
@@ -48,47 +53,67 @@ export default function ProfileScreen() {
         <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary, marginTop: 16 }]}>
           Email
         </Text>
-        <Text style={[styles.emailText, { color: theme.colors.text }]}>{user?.email}</Text>
+        <View style={[styles.emailRow, { backgroundColor: theme.colors.inputBg, borderColor: theme.colors.border }]}>
+          <Text style={[styles.emailText, { color: theme.colors.text }]}>{user?.email}</Text>
+        </View>
       </View>
 
       <TouchableOpacity
-        style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+        style={[styles.saveButton, { backgroundColor: theme.colors.primary, opacity: saving ? 0.7 : 1 }]}
         onPress={handleSave}
         disabled={saving}
+        activeOpacity={0.8}
       >
-        <Text style={styles.saveText}>{saving ? "Saving..." : "Save Changes"}</Text>
+        {saving ? (
+          <ActivityIndicator color="#FFF" size="small" />
+        ) : (
+          <Text style={styles.saveText}>Save Changes</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 20 },
-  avatarSection: { alignItems: "center", marginBottom: 24 },
+  container: { flex: 1, paddingTop: 24 },
+  avatarSection: { alignItems: "center", marginBottom: 28 },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  avatarText: { color: "#FFF", fontSize: 32, fontWeight: "700" },
-  username: { fontSize: 16 },
-  section: { marginHorizontal: 16, borderRadius: 12, padding: 16, marginBottom: 20 },
-  fieldLabel: { fontSize: 13, marginBottom: 6 },
+  avatarText: { color: "#FFF", fontSize: 36, fontWeight: "700" },
+  displayName: { fontSize: 20, fontWeight: "700", marginBottom: 2 },
+  username: { fontSize: 15 },
+  section: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+  },
+  fieldLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6, marginLeft: 2 },
   input: {
-    height: 44,
-    borderRadius: 10,
+    height: 46,
+    borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 16,
+    borderWidth: 1,
+  },
+  emailRow: {
+    height: 46,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    justifyContent: "center",
     borderWidth: 1,
   },
   emailText: { fontSize: 16 },
   saveButton: {
     marginHorizontal: 16,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },

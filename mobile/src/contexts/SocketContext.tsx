@@ -18,6 +18,7 @@ const SERVER_URL = "https://voxlink-backend.onrender.com";
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
+  const [socketState, setSocketState] = useState<Socket | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+        setSocketState(null);
       }
       return;
     }
@@ -35,6 +37,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       const socket = io(SERVER_URL, {
         auth: { token },
         transports: ["websocket"],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+      });
+
+      socket.on("connect", () => {
+        setSocketState(socket);
+      });
+
+      socket.on("disconnect", () => {
+        setSocketState(null);
+      });
+
+      socket.on("reconnect", () => {
+        setSocketState(socket);
       });
 
       socket.on("online-status", (data: { userId: string; online: boolean }) => {
@@ -47,16 +65,18 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       });
 
       socketRef.current = socket;
+      setSocketState(socket);
     });
 
     return () => {
       socketRef.current?.disconnect();
       socketRef.current = null;
+      setSocketState(null);
     };
   }, [user]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, onlineUsers }}>
+    <SocketContext.Provider value={{ socket: socketState, onlineUsers }}>
       {children}
     </SocketContext.Provider>
   );

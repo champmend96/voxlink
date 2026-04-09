@@ -11,18 +11,26 @@ export default function SettingsScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Dark Mode</Text>
+          <View style={styles.rowLeft}>
+            <Text style={styles.rowIcon}>{isDark ? "\u{1F319}" : "\u2600\uFE0F"}</Text>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Dark Mode</Text>
+          </View>
           <Switch
             value={isDark}
             onValueChange={toggleTheme}
             trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            thumbColor="#FFF"
           />
         </View>
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity style={styles.row} onPress={logout}>
-          <Text style={[styles.label, { color: "#EF4444" }]}>Sign Out</Text>
+        <TouchableOpacity style={styles.row} onPress={logout} activeOpacity={0.6}>
+          <View style={styles.rowLeft}>
+            <Text style={styles.rowIcon}>{"\u{1F6AA}"}</Text>
+            <Text style={[styles.label, { color: "#EF4444" }]}>Sign Out</Text>
+          </View>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>{"\u203A"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -35,7 +43,12 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 20 },
-  section: { marginHorizontal: 16, borderRadius: 12, marginBottom: 20, overflow: "hidden" },
+  section: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -44,6 +57,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  rowLeft: { flexDirection: "row", alignItems: "center" },
+  rowIcon: { fontSize: 18, marginRight: 12 },
   label: { fontSize: 16 },
-  version: { textAlign: "center", marginTop: 20, fontSize: 13 },
+  version: { textAlign: "center", marginTop: 24, fontSize: 13 },
 });

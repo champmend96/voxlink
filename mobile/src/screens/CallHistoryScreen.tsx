@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
@@ -22,7 +23,9 @@ function formatCallTime(dateStr: string): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
-  return date.toLocaleDateString();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  if (diffMs < 604800000) return days[date.getDay()];
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function formatDuration(seconds: number): string {
@@ -33,22 +36,35 @@ function formatDuration(seconds: number): string {
   return `${mins}m ${secs}s`;
 }
 
+function getAvatarColor(name: string, colors: string[]): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
 export default function CallHistoryScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [calls, setCalls] = useState<CallHistoryEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const loadCalls = useCallback(async () => {
     try {
       const data = (await api.calls.history()) as { calls: CallHistoryEntry[] };
       setCalls(data.calls);
-    } catch {}
+    } catch {} finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    loadCalls();
-  }, [loadCalls]);
+  useFocusEffect(
+    useCallback(() => {
+      loadCalls();
+    }, [loadCalls])
+  );
 
   async function onRefresh() {
     setRefreshing(true);
@@ -68,10 +84,6 @@ export default function CallHistoryScreen() {
 
     switch (call.status) {
       case "completed":
-        statusText = isCaller ? "Outgoing" : "Incoming";
-        statusColor = theme.colors.online;
-        icon = isCaller ? "\u2197\uFE0F" : "\u2199\uFE0F";
-        break;
       case "answered":
         statusText = isCaller ? "Outgoing" : "Incoming";
         statusColor = theme.colors.online;
@@ -96,29 +108,48 @@ export default function CallHistoryScreen() {
     return { peerName, initial, statusText, statusColor, icon };
   }
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FlatList
         data={calls}
         keyExtractor={(item) => item.id}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
+        contentContainerStyle={calls.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No call history yet
+          <View style={styles.emptyState}>
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>{"\u{1F4DE}"}</Text>
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+              No calls yet
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+              Your call history will appear here
             </Text>
           </View>
         }
+        ItemSeparatorComponent={() => (
+          <View style={{ marginLeft: 72 }}>
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border }} />
+          </View>
+        )}
         renderItem={({ item }) => {
           const { peerName, initial, statusText, statusColor, icon } =
             getCallStatusInfo(item);
           const durationStr = formatDuration(item.duration);
+          const avatarColor = getAvatarColor(peerName, theme.colors.avatarColors);
 
           return (
-            <View style={[styles.callItem, { borderBottomColor: theme.colors.border }]}>
-              <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+            <View style={styles.callItem}>
+              <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
                 <Text style={styles.avatarText}>{initial}</Text>
               </View>
 
@@ -127,10 +158,13 @@ export default function CallHistoryScreen() {
                   {peerName}
                 </Text>
                 <View style={styles.statusRow}>
-                  <Text style={{ fontSize: 14 }}>{icon}</Text>
+                  <Text style={{ fontSize: 13 }}>{icon}</Text>
                   <Text style={[styles.statusText, { color: statusColor }]}>
                     {statusText}
                   </Text>
+                  {item.callType === "video" && (
+                    <Text style={{ fontSize: 12, marginLeft: 4 }}>{"\u{1F4F9}"}</Text>
+                  )}
                   {durationStr ? (
                     <Text style={[styles.durationText, { color: theme.colors.textSecondary }]}>
                       {" \u00B7 "}{durationStr}
@@ -152,28 +186,30 @@ export default function CallHistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 100 },
-  emptyText: { fontSize: 16 },
+  centered: { justifyContent: "center", alignItems: "center" },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyState: { alignItems: "center", paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: "600", marginBottom: 6 },
+  emptySubtitle: { fontSize: 14, textAlign: "center" },
   callItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   avatarText: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
   callInfo: { flex: 1 },
   peerName: { fontSize: 16, fontWeight: "600", marginBottom: 2 },
   statusRow: { flexDirection: "row", alignItems: "center" },
-  statusText: { fontSize: 13, marginLeft: 4 },
+  statusText: { fontSize: 13, marginLeft: 4, fontWeight: "500" },
   durationText: { fontSize: 13 },
-  time: { fontSize: 13 },
+  time: { fontSize: 12, fontWeight: "500" },
 });

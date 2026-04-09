@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -25,7 +26,7 @@ import type { RootStackParamList } from "../navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Chat">;
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://voxlink-backend.onrender.com";
 
 export default function ChatScreen({ route, navigation }: Props) {
   const { conversationId } = route.params;
@@ -38,6 +39,7 @@ export default function ChatScreen({ route, navigation }: Props) {
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isEncrypted, setIsEncrypted] = useState(false);
+  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -50,7 +52,6 @@ export default function ChatScreen({ route, navigation }: Props) {
     try {
       const data = (await api.conversations.get(conversationId)) as Conversation;
       setConversation(data);
-      // Check if all participants have public keys for E2E indicator
       const participantIds = data.participants.map((p) => p.userId);
       try {
         const { keys } = await api.keys.getPublicKeys(participantIds);
@@ -69,39 +70,39 @@ export default function ChatScreen({ route, navigation }: Props) {
 
     navigation.setOptions({
       headerRight: () => (
-        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 8, gap: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 4, gap: 2 }}>
           {isEncrypted && (
-            <Text style={{ fontSize: 16, marginRight: 4 }}>{"\uD83D\uDD12"}</Text>
+            <View style={headerStyles.badge}>
+              <Text style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</Text>
+            </View>
           )}
           {conversation.isGroup && (
             <TouchableOpacity
-              style={{ padding: 4 }}
-              onPress={() => {
-                navigation.navigate("GroupCall", { conversationId });
-              }}
+              style={headerStyles.iconBtn}
+              onPress={() => navigation.navigate("GroupCall", { conversationId })}
             >
-              <Text style={{ fontSize: 22 }}>{"\uD83D\uDC65"}</Text>
+              <Text style={{ fontSize: 20 }}>{"\uD83D\uDC65"}</Text>
             </TouchableOpacity>
           )}
           {!conversation.isGroup && peer && (
             <>
               <TouchableOpacity
-                style={{ padding: 4 }}
+                style={headerStyles.iconBtn}
                 onPress={() => {
                   initiateCall(peer.user.id, peer.user, "video");
                   navigation.navigate("OutgoingCall");
                 }}
               >
-                <Text style={{ fontSize: 22 }}>{"\u{1F4F9}"}</Text>
+                <Text style={{ fontSize: 18 }}>{"\u{1F4F9}"}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ padding: 4 }}
+                style={headerStyles.iconBtn}
                 onPress={() => {
                   initiateCall(peer.user.id, peer.user, "audio");
                   navigation.navigate("OutgoingCall");
                 }}
               >
-                <Text style={{ fontSize: 22 }}>{"\u{1F4DE}"}</Text>
+                <Text style={{ fontSize: 18 }}>{"\u{1F4DE}"}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -117,7 +118,10 @@ export default function ChatScreen({ route, navigation }: Props) {
 
     function onNewMessage(msg: Message) {
       if (msg.conversationId === conversationId) {
-        setMessages((prev) => [msg, ...prev]);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [msg, ...prev];
+        });
         if (msg.senderId !== user?.id) {
           socket!.emit("read-receipt", { conversationId, messageId: msg.id });
         }
@@ -162,7 +166,9 @@ export default function ChatScreen({ route, navigation }: Props) {
         hasMore: boolean;
       };
       setMessages(data.messages);
-    } catch {}
+    } catch {} finally {
+      setLoading(false);
+    }
   }
 
   function handleSend() {
@@ -280,7 +286,9 @@ export default function ChatScreen({ route, navigation }: Props) {
         style={styles.fileRow}
         onPress={() => Linking.openURL(`${SERVER_URL}${fileMeta.downloadUrl}`)}
       >
-        <Text style={styles.fileIcon}>{"\uD83D\uDCC4"}</Text>
+        <View style={[styles.fileIconContainer, { backgroundColor: mine ? "rgba(255,255,255,0.15)" : theme.colors.primaryLight }]}>
+          <Text style={{ fontSize: 18 }}>{"\uD83D\uDCC4"}</Text>
+        </View>
         <View style={{ flex: 1 }}>
           <Text
             style={{
@@ -294,15 +302,23 @@ export default function ChatScreen({ route, navigation }: Props) {
           </Text>
           <Text
             style={{
-              color: mine ? "rgba(255,255,255,0.7)" : theme.colors.textSecondary,
+              color: mine ? "rgba(255,255,255,0.6)" : theme.colors.textSecondary,
               fontSize: 12,
+              marginTop: 1,
             }}
           >
             {formatFileSize(fileMeta.size)}
           </Text>
         </View>
-        <Text style={{ fontSize: 18, marginLeft: 8 }}>{"\u2B07\uFE0F"}</Text>
       </TouchableOpacity>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
     );
   }
 
@@ -317,26 +333,47 @@ export default function ChatScreen({ route, navigation }: Props) {
         data={messages}
         keyExtractor={(item) => item.id}
         inverted
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
+        contentContainerStyle={messages.length === 0 ? styles.emptyContainer : styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>{"\u{1F44B}"}</Text>
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              Say hello!
+            </Text>
+          </View>
+        }
+        renderItem={({ item, index }) => {
           const mine = isMine(item);
           const fileMeta = isFileMessage(item.content);
+          const showSender = !mine && item.sender && conversation?.isGroup;
+
+          // Group consecutive messages from same sender
+          const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+          const prevMsg = index > 0 ? messages[index - 1] : null;
+          const isFirstInGroup = !nextMsg || nextMsg.senderId !== item.senderId;
+          const isLastInGroup = !prevMsg || prevMsg.senderId !== item.senderId;
 
           return (
-            <View style={[styles.bubble, mine ? styles.bubbleRight : styles.bubbleLeft]}>
+            <View style={[
+              styles.bubble,
+              mine ? styles.bubbleRight : styles.bubbleLeft,
+              { marginTop: isFirstInGroup ? 8 : 1, marginBottom: isLastInGroup ? 0 : 0 },
+            ]}>
               <View
                 style={[
                   styles.bubbleInner,
                   {
-                    backgroundColor: mine
-                      ? theme.colors.messageSent
-                      : theme.colors.messageReceived,
+                    backgroundColor: mine ? theme.colors.messageSent : theme.colors.messageReceived,
+                    borderBottomRightRadius: mine && !isLastInGroup ? 6 : 20,
+                    borderBottomLeftRadius: !mine && !isLastInGroup ? 6 : 20,
+                    borderTopRightRadius: mine && !isFirstInGroup ? 6 : 20,
+                    borderTopLeftRadius: !mine && !isFirstInGroup ? 6 : 20,
                   },
                 ]}
               >
-                {!mine && item.sender && (
+                {showSender && isFirstInGroup && (
                   <Text style={[styles.senderName, { color: theme.colors.primary }]}>
-                    {item.sender.displayName || item.sender.username}
+                    {item.sender!.displayName || item.sender!.username}
                   </Text>
                 )}
                 {fileMeta ? (
@@ -344,10 +381,9 @@ export default function ChatScreen({ route, navigation }: Props) {
                 ) : (
                   <Text
                     style={{
-                      color: mine
-                        ? theme.colors.messageSentText
-                        : theme.colors.messageReceivedText,
+                      color: mine ? theme.colors.messageSentText : theme.colors.messageReceivedText,
                       fontSize: 15,
+                      lineHeight: 21,
                     }}
                   >
                     {item.content}
@@ -358,9 +394,7 @@ export default function ChatScreen({ route, navigation }: Props) {
                     style={[
                       styles.time,
                       {
-                        color: mine
-                          ? "rgba(255,255,255,0.7)"
-                          : theme.colors.textSecondary,
+                        color: mine ? "rgba(255,255,255,0.6)" : theme.colors.textSecondary,
                       },
                     ]}
                   >
@@ -371,10 +405,7 @@ export default function ChatScreen({ route, navigation }: Props) {
                       style={[
                         styles.readStatus,
                         {
-                          color:
-                            item.readBy.length > 1
-                              ? "#22C55E"
-                              : "rgba(255,255,255,0.5)",
+                          color: item.readBy.length > 1 ? "#22C55E" : "rgba(255,255,255,0.4)",
                         },
                       ]}
                     >
@@ -389,7 +420,12 @@ export default function ChatScreen({ route, navigation }: Props) {
       />
 
       {typingText && (
-        <View style={styles.typingBar}>
+        <View style={[styles.typingBar, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.typingDots}>
+            <View style={[styles.typingDot, { backgroundColor: theme.colors.textSecondary }]} />
+            <View style={[styles.typingDot, { backgroundColor: theme.colors.textSecondary, opacity: 0.7 }]} />
+            <View style={[styles.typingDot, { backgroundColor: theme.colors.textSecondary, opacity: 0.4 }]} />
+          </View>
           <Text style={[styles.typingText, { color: theme.colors.textSecondary }]}>
             {typingText}
           </Text>
@@ -401,11 +437,11 @@ export default function ChatScreen({ route, navigation }: Props) {
           style={styles.attachButton}
           onPress={handleAttachment}
         >
-          <Text style={{ fontSize: 22, color: theme.colors.textSecondary }}>{"\uD83D\uDCCE"}</Text>
+          <Text style={{ fontSize: 20, color: theme.colors.textSecondary }}>{"\uFF0B"}</Text>
         </TouchableOpacity>
         <TextInput
           style={[styles.input, { backgroundColor: theme.colors.inputBg, color: theme.colors.text }]}
-          placeholder="Message..."
+          placeholder="Type a message..."
           placeholderTextColor={theme.colors.textSecondary}
           value={text}
           onChangeText={handleTyping}
@@ -413,12 +449,20 @@ export default function ChatScreen({ route, navigation }: Props) {
           maxLength={5000}
         />
         <TouchableOpacity
-          style={[styles.sendButton, { backgroundColor: text.trim() ? theme.colors.primary : theme.colors.inputBg }]}
+          style={[
+            styles.sendButton,
+            {
+              backgroundColor: text.trim() ? theme.colors.primary : "transparent",
+            },
+          ]}
           onPress={handleSend}
           disabled={!text.trim()}
         >
-          <Text style={[styles.sendIcon, { color: text.trim() ? "#FFF" : theme.colors.textSecondary }]}>
-            \u27A4
+          <Text style={[
+            styles.sendIcon,
+            { color: text.trim() ? "#FFF" : theme.colors.textSecondary },
+          ]}>
+            {"\u27A4"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -426,62 +470,99 @@ export default function ChatScreen({ route, navigation }: Props) {
   );
 }
 
+const headerStyles = StyleSheet.create({
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centered: { justifyContent: "center", alignItems: "center" },
   list: { paddingHorizontal: 12, paddingVertical: 8 },
-  bubble: { marginVertical: 2, maxWidth: "80%" },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyState: { alignItems: "center", transform: [{ scaleY: -1 }] },
+  emptyText: { fontSize: 16 },
+  bubble: { maxWidth: "78%" },
   bubbleRight: { alignSelf: "flex-end" },
   bubbleLeft: { alignSelf: "flex-start" },
-  bubbleInner: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18 },
-  senderName: { fontSize: 12, fontWeight: "600", marginBottom: 2 },
-  meta: { flexDirection: "row", justifyContent: "flex-end", marginTop: 2 },
-  time: { fontSize: 11 },
-  readStatus: { fontSize: 11 },
-  typingBar: { paddingHorizontal: 20, paddingVertical: 4 },
-  typingText: { fontSize: 13, fontStyle: "italic" },
+  bubbleInner: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  senderName: { fontSize: 12, fontWeight: "700", marginBottom: 2 },
+  meta: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginTop: 3 },
+  time: { fontSize: 10 },
+  readStatus: { fontSize: 11, fontWeight: "600" },
+  typingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 6,
+  },
+  typingDots: { flexDirection: "row", gap: 3, marginRight: 8 },
+  typingDot: { width: 5, height: 5, borderRadius: 2.5 },
+  typingText: { fontSize: 12, fontStyle: "italic" },
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   attachButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 2,
   },
   input: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 36,
     maxHeight: 100,
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginRight: 8,
+    paddingVertical: 8,
+    fontSize: 15,
+    marginHorizontal: 6,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 2,
   },
-  sendIcon: { fontSize: 18 },
+  sendIcon: { fontSize: 16 },
   imageThumb: {
-    width: 180,
-    height: 180,
-    borderRadius: 12,
+    width: 200,
+    height: 200,
+    borderRadius: 14,
   },
   fileRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 4,
   },
-  fileIcon: {
-    fontSize: 28,
-    marginRight: 8,
+  fileIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
   },
 });

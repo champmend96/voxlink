@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, Text, StyleSheet } from "react-native";
 import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator, NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -17,7 +17,6 @@ import OutgoingCallScreen from "../screens/OutgoingCallScreen";
 import IncomingCallScreen from "../screens/IncomingCallScreen";
 import ActiveCallScreen from "../screens/ActiveCallScreen";
 import GroupCallScreen from "../screens/GroupCallScreen";
-import { Text } from "react-native";
 
 export type RootStackParamList = {
   Auth: undefined;
@@ -45,16 +44,18 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-function TabIcon({ label, focused, color }: { label: string; focused: boolean; color: string }) {
-  const icons: Record<string, string> = {
-    Conversations: "\u{1F4AC}",
-    Calls: "\u{1F4DE}",
-    Settings: "\u2699\uFE0F",
-    Profile: "\u{1F464}",
-  };
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  Conversations: { active: "\u{1F4AC}", inactive: "\u{1F4AC}" },
+  Calls: { active: "\u{1F4DE}", inactive: "\u{1F4DE}" },
+  Settings: { active: "\u2699\uFE0F", inactive: "\u2699\uFE0F" },
+  Profile: { active: "\u{1F464}", inactive: "\u{1F464}" },
+};
+
+function TabIcon({ label, focused }: { label: string; focused: boolean; color: string }) {
+  const icons = TAB_ICONS[label];
   return (
-    <Text style={{ fontSize: focused ? 24 : 20, opacity: focused ? 1 : 0.6 }}>
-      {icons[label] || "\u2022"}
+    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
+      {icons ? (focused ? icons.active : icons.inactive) : "\u2022"}
     </Text>
   );
 }
@@ -79,14 +80,26 @@ function MainTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerStyle: { backgroundColor: theme.colors.card },
+        headerStyle: {
+          backgroundColor: theme.colors.headerBg,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+        },
         headerTintColor: theme.colors.text,
+        headerTitleStyle: { fontWeight: "700", fontSize: 18 },
         tabBarStyle: {
           backgroundColor: theme.colors.tabBar,
           borderTopColor: theme.colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 84,
+          paddingBottom: 28,
+          paddingTop: 8,
         },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
         tabBarIcon: ({ focused, color }) => (
           <TabIcon label={route.name} focused={focused} color={color} />
         ),
@@ -164,8 +177,13 @@ export default function AppNavigator() {
               options={({ route }) => ({
                 headerShown: true,
                 title: route.params.title,
-                headerStyle: { backgroundColor: theme.colors.card },
+                headerStyle: {
+                  backgroundColor: theme.colors.headerBg,
+                },
                 headerTintColor: theme.colors.text,
+                headerTitleStyle: { fontWeight: "600", fontSize: 17 },
+                headerShadowVisible: false,
+                headerBackTitleVisible: false,
               })}
             />
             <RootStack.Screen
